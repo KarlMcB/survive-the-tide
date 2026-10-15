@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Survive the Tide: Intertidal Zone Game</title>
+<style>
+*{box-sizing:border-box}
+:root{
+  --ink:#0b2a3c; --ink-2:#47627a; --line:#d3e2ea;
+  --card:#ffffff; --foam:#eaf7fb;
+  --bg1:#06233a; --bg2:#0d5a74;
+  --sea:#1b97b8; --sea-d:#0e6f8e; --gold:#ffc94d;
+  --good:#0f7a55; --good-bg:#e1f6ec; --bad:#b92d36; --bad-bg:#fde8e9;
+  --r:16px;
+}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; min-height:100vh; color:var(--ink);
+  font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  background:linear-gradient(165deg,var(--bg1) 0%,var(--bg2) 100%) fixed;
+}
+.app{max-width:1200px;margin:0 auto;padding:14px 18px 32px}
+.skip{position:absolute;left:-999px;top:0;background:#fff;color:var(--ink);padding:8px 12px;z-index:10}
+.skip:focus{left:8px;top:8px}
+[hidden]{display:none!important}
+
+/* ---------- top bar ---------- */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;min-height:44px}
+.brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:800;font-size:1.15rem;letter-spacing:.01em}
+.brand svg{width:34px;height:34px;flex:none}
+.play-only{display:none;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+body[data-screen="play"] .play-only{display:flex}
+.hearts{display:flex;gap:3px}
+.hearts svg{width:26px;height:26px;fill:#ff5d73;filter:drop-shadow(0 1px 0 rgba(0,0,0,.25))}
+.hearts svg.lost{fill:rgba(255,255,255,.2)}
+.hearts svg.pop{animation:pop .55s ease-out}
+@keyframes pop{0%{transform:scale(1)}35%{transform:scale(1.5) rotate(-10deg)}100%{transform:scale(1)}}
+.score{color:#fff;font-weight:800;background:rgba(255,255,255,.13);padding:6px 14px;border-radius:999px;white-space:nowrap}
+.score b{color:var(--gold);font-variant-numeric:tabular-nums}
+
+/* ---------- buttons ---------- */
+.btn{font:inherit;font-weight:700;border:0;border-radius:12px;padding:10px 18px;cursor:pointer;transition:transform .12s,box-shadow .12s,background .12s}
+.btn:focus-visible,.opt:focus-visible,.pick:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.btn.cta{background:var(--gold);color:var(--ink);font-size:1.1rem;padding:14px 28px;box-shadow:0 4px 0 #c9962a}
+.btn.cta:hover:not(:disabled){transform:translateY(-1px)}
+.btn.cta:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 #c9962a}
+.btn.cta:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--sea-d);color:#fff;font-size:1.02rem;padding:11px 22px}
+.btn.primary:hover{background:#0b5c76}
+.btn.ghost{background:rgba(255,255,255,.14);color:#fff}
+.btn.ghost:hover:not(:disabled){background:rgba(255,255,255,.24)}
+.btn.sm{padding:6px 12px;font-size:.88rem}
+.btn:disabled{cursor:default}
+.card{background:var(--card);border-radius:var(--r);box-shadow:0 12px 32px rgba(2,18,30,.35)}
+.card .btn.ghost,dialog .btn.ghost{background:var(--foam);color:var(--sea-d)}
+.card .btn.ghost:hover:not(:disabled),dialog .btn.ghost:hover:not(:disabled){background:#d6eef6}
+.card .btn.ghost:disabled{opacity:.5}
+
+/* ---------- title ---------- */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:30px;align-items:center;padding-top:8px}
+.eyebrow{color:#9fe3f2;font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:.78rem;margin:0}
+.hero h1{font-size:clamp(2.3rem,5vw,3.7rem);line-height:1.04;color:#fff;margin:.15em 0 .2em;letter-spacing:-.02em}
+.lead{color:#d6eef5;font-size:1.12rem;max-width:34em;margin:0}
+.steps{list-style:none;padding:0;margin:20px 0 26px;display:grid;gap:10px}
+.steps li{display:flex;gap:12px;align-items:flex-start;background:rgba(255,255,255,.09);padding:10px 14px;border-radius:12px;color:#fff}
+.steps .n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--gold);color:var(--ink);font-weight:800;display:grid;place-items:center;font-size:.9rem}
+
+/* ---------- select ---------- */
+.sel-head h1{color:#fff;margin:0 0 4px;font-size:1.9rem}
+.sel-head p{color:#cfe9f1;margin:0 0 16px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.pick{position:relative;font:inherit;text-align:center;background:#fff;color:var(--ink);border:3px solid transparent;border-radius:14px;padding:10px 8px 12px;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s}
+.pick:hover{transform:translateY(-2px)}
+.pick svg{width:100%;height:68px}
+.pick .nm{display:block;font-weight:800;font-size:1.02rem}
+.pick .zb{margin-top:4px}
+.pick[aria-checked="true"]{border-color:var(--gold);box-shadow:0 0 0 4px rgba(255,201,77,.45);transform:translateY(-3px)}
+.pick .done{position:absolute;top:6px;right:8px;background:var(--good);color:#fff;font-size:.68rem;font-weight:800;border-radius:999px;padding:2px 8px}
+.zb{display:inline-block;font-size:.72rem;font-weight:800;padding:2px 9px;border-radius:999px;color:var(--ink);letter-spacing:.02em}
+.z-splash{background:#d6e2ee}.z-high{background:#f3dc9a}.z-mid{background:#a8dcc3}.z-low{background:#a9d3f1}
+.sel-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px;align-items:start}
+.sel-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:18px}
+.guide{padding:18px 20px}
+.guide .empty{color:var(--ink-2);margin:0;padding:30px 0;text-align:center}
+.g-head{display:flex;gap:14px;align-items:center;margin-bottom:6px}
+.g-icon{flex:none;width:92px;height:70px;background:var(--foam);border-radius:12px;padding:4px}
+.g-icon svg{width:100%;height:100%}
+.guide h3{margin:0;font-size:1.35rem;line-height:1.15}
+.guide .sci{margin:2px 0 6px;color:var(--ink-2);font-size:.9rem}
+.guide h4{margin:12px 0 2px;font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;color:var(--sea-d)}
+.guide p{margin:0}
+.guide ul{margin:2px 0 0;padding-left:20px}
+.guide li{margin:2px 0}
+.guide .fun{margin-top:12px;background:#fff7dd;border-radius:10px;padding:8px 12px;font-size:.94rem}
+
+/* ---------- scene ---------- */
+#sceneWrap{background:#fff;border-radius:var(--r);overflow:hidden;box-shadow:0 12px 32px rgba(2,18,30,.35)}
+.zstrip{display:flex;background:#0b2a3c;color:#bfe0ea;font-size:.68rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.zstrip span{padding:6px 2px;text-align:center;border-right:1px solid rgba(255,255,255,.14);transition:background .4s,color .4s;white-space:nowrap;overflow:hidden}
+.zstrip span.on{background:var(--gold);color:var(--ink)}
+svg.scene{display:block;width:100%;height:auto}
+.hud{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 14px;align-items:center;padding:10px 14px 12px;border-top:1px solid var(--line)}
+.tiles{display:flex;gap:8px;flex-wrap:wrap}
+.tile{background:var(--foam);border-radius:10px;padding:5px 10px;min-width:96px}
+.tile small{display:block;font-size:.66rem;color:var(--ink-2);text-transform:uppercase;letter-spacing:.07em;font-weight:800}
+.tile b{display:block;font-size:1.02rem;line-height:1.25;font-variant-numeric:tabular-nums}
+.tile b span{display:block;font-size:.72rem;font-weight:700;color:var(--ink-2)}
+.tile b.wet{color:#0b5c8a}.tile b.dry{color:#9a5b00}.tile b.pool{color:#0c7a6a}
+svg.curve{width:100%;height:auto;display:block;max-height:92px}
+
+/* scene animation */
+#water{transition:transform 2.4s cubic-bezier(.45,.05,.55,.95)}
+.wavemove{animation:wave var(--wdur,5.5s) linear infinite}
+@keyframes wave{to{transform:translateX(-100px)}}
+.wp.murk{opacity:0;transition:opacity 1.2s}
+svg.murk .wp.murk{opacity:1}
+.sky{transition:opacity 1.2s}
+.sun,.clouds,.rainwrap{transition:opacity 1.2s}
+.sun .rays{transform-box:fill-box;transform-origin:center;animation:spin 40s linear infinite}
+.sun.hot .core{fill:#ff9a2a}.sun.hot .glow{fill:#ff8a1f}
+.sunin{transition:transform 1s;transform-box:fill-box;transform-origin:center}
+.sun.hot .sunin{transform:scale(1.25)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.cloud{animation:drift 36s ease-in-out infinite alternate}
+@keyframes drift{from{transform:translateX(-24px)}to{transform:translateX(24px)}}
+.rainfall{animation:rain .8s linear infinite}
+.rainwrap.heavy .rainfall{animation-duration:.5s}
+@keyframes rain{to{transform:translateY(400px)}}
+.weed{transform-box:fill-box;transform-origin:50% 100%;animation:sway 4s ease-in-out infinite alternate}
+@keyframes sway{from{transform:rotate(-6deg)}to{transform:rotate(6deg)}}
+.crit{transition:opacity .5s}
+.crit.dim{opacity:.5}
+.crit .art{transform-box:fill-box;transform-origin:50% 100%}
+.crit.you .art{animation:bob 2.2s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.band{fill:#fff;opacity:0;transition:opacity .6s}
+.band.on{opacity:.13}
+.divs line{stroke:rgba(255,255,255,.55);stroke-width:1.5;stroke-dasharray:4 5}
+.ring{opacity:0;transform-box:fill-box;transform-origin:center}
+.ring.good{stroke:#27c485;animation:ping .9s ease-out}
+.ring.bad{stroke:#ff5d73;animation:ping .9s ease-out}
+@keyframes ping{0%{opacity:.95;transform:scale(.55)}100%{opacity:0;transform:scale(1.9)}}
+.ytag rect{fill:#0b2a3c}
+.ytag text{fill:var(--gold);font-weight:800;font-size:11px;letter-spacing:.06em;text-anchor:middle}
+.ytag path{fill:#0b2a3c}
+.gullg{opacity:0}
+svg.gull .gullg{opacity:1;animation:fly 7s linear 1 forwards}
+@keyframes fly{from{transform:translate(-70px,70px)}to{transform:translate(880px,36px)}}
+.gullg path{fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;transform-box:fill-box;transform-origin:center;animation:flap .45s ease-in-out infinite alternate}
+@keyframes flap{from{transform:scaleY(1)}to{transform:scaleY(-.5)}}
+
+/* ---------- play ---------- */
+.play{display:grid;grid-template-columns:minmax(0,1.06fr) minmax(0,1fr);gap:16px;align-items:start}
+.qcard{padding:20px 22px 20px}
+.qtop{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.chip{display:inline-block;color:#fff;font-size:.72rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;padding:3px 11px;border-radius:999px}
+.c-adapt{background:#0e6f8e}.c-zone{background:#5b3fb5}.c-tide{background:#1f4fb8}.c-eco{background:#1b7a3d}.c-human{background:#a8480a}
+.rnd{color:var(--ink-2);font-weight:700;font-size:.85rem}
+.qcard h2{margin:0 0 6px;font-size:1.4rem;line-height:1.2;outline:none}
+.story{margin:0 0 10px;font-size:1.02rem}
+.ask{margin:0 0 12px;font-weight:800;font-size:1.08rem}
+.opts{display:grid;gap:9px}
+.opt{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;font:inherit;padding:11px 14px;border:2px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);cursor:pointer;transition:border-color .12s,background .12s,transform .12s}
+.opt:hover:not(:disabled){border-color:var(--sea);background:var(--foam);transform:translateX(2px)}
+.opt .k{flex:none;width:26px;height:26px;border-radius:8px;background:var(--foam);display:grid;place-items:center;font-weight:800;font-size:.88rem;color:var(--sea-d)}
+.opt .t{padding-top:1px}
+.opt:disabled{cursor:default;color:var(--ink)}
+.opt.right{border-color:var(--good);background:var(--good-bg)}
+.opt.right .k{background:var(--good);color:#fff}
+.opt.wrong{border-color:var(--bad);background:var(--bad-bg)}
+.opt.wrong .k{background:var(--bad);color:#fff}
+.opt.gone{opacity:.4;text-decoration:line-through;cursor:default;pointer-events:none}
+.opt.faded{opacity:.55}
+.qfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap}
+.keys{font-size:.8rem;color:var(--ink-2)}
+.fb{margin-top:14px}
+.fb .box{border-radius:12px;padding:12px 14px;border-left:6px solid}
+.fb .box.ok{background:var(--good-bg);border-color:var(--good)}
+.fb .box.no{background:var(--bad-bg);border-color:var(--bad)}
+.fb .h{display:flex;align-items:center;gap:8px;font-size:1.05rem;margin-bottom:2px}
+.fb .h svg{width:22px;height:22px;flex:none}
+.fb .ok .h svg{fill:var(--good)}.fb .no .h svg{fill:var(--bad)}
+.fb .tagline{margin-left:auto;font-size:.76rem;font-weight:800;padding:2px 9px;border-radius:999px;background:rgba(0,0,0,.08);white-space:nowrap}
+.fb p{margin:4px 0 0}
+.fb .best{margin-top:8px;padding-top:8px;border-top:1px dashed rgba(0,0,0,.2)}
+.fb .go{margin-top:12px;display:flex;justify-content:flex-end}
+
+/* ---------- end ---------- */
+.endcard{padding:26px 28px}
+.end-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:20px;align-items:center}
+.end-icon{width:130px;height:96px;background:var(--foam);border-radius:16px;padding:6px}
+.end-icon svg{width:100%;height:100%}
+.endcard h1{margin:2px 0 4px;font-size:clamp(1.6rem,3.4vw,2.3rem);line-height:1.1}
+.endcard .eyebrow{color:var(--sea-d)}
+.endcard.lose .eyebrow{color:var(--bad)}
+.bigscore{text-align:center;background:#0b2a3c;color:#fff;border-radius:16px;padding:12px 22px}
+.bigscore b{display:block;font-size:2.8rem;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}
+.bigscore span{font-size:.82rem;color:#bfe0ea}
+.rating{display:inline-block;margin:8px 0 0;background:var(--gold);color:var(--ink);font-weight:800;padding:4px 14px;border-radius:999px}
+.end-cols{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:26px;margin-top:22px}
+.end-cols h3{margin:0 0 8px;font-size:.8rem;letter-spacing:.09em;text-transform:uppercase;color:var(--sea-d)}
+.skill{display:grid;grid-template-columns:132px minmax(0,1fr) 38px;gap:8px;align-items:center;margin:7px 0;font-size:.92rem}
+.skill .bar{height:12px;background:#e3eef3;border-radius:999px;overflow:hidden}
+.skill .bar i{display:block;height:100%;background:var(--sea);border-radius:999px}
+.skill .num{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}
+.recap{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.recap li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;padding:8px 10px;border-radius:10px;background:#f4f9fb;font-size:.92rem}
+.recap svg{width:22px;height:22px;margin-top:1px}
+.recap .y svg{fill:var(--good)}.recap .n svg{fill:var(--bad)}
+.recap div>b{display:block}
+.recap span{color:var(--ink-2)}
+.end-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px;align-items:center}
+.shot{margin-left:auto;color:var(--ink-2);font-size:.86rem}
+
+/* ---------- dialog ---------- */
+dialog{border:0;border-radius:18px;padding:0;width:calc(100% - 28px);max-width:640px;color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+dialog::backdrop{background:rgba(3,20,32,.68)}
+.dlg-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px 0}
+.dlg-head b{font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;color:var(--sea-d)}
+dialog .guide{padding:6px 20px 18px;max-height:72vh;overflow:auto}
+
+@media (max-width:900px){
+  .hero,.sel-grid,.play,.end-cols{grid-template-columns:1fr}
+  .end-head{grid-template-columns:auto 1fr}
+  .bigscore{grid-column:1 / -1}
+  .hud{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .brand span{white-space:nowrap}
+  body[data-screen="play"] .brand span{display:none}
+  .zstrip{font-size:.58rem;letter-spacing:.03em}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body data-screen="title">
+<a class="skip" href="#screen">Skip to game</a>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="#ffc94d"/><path d="M3 22q4-6 8 0t8 0 8 0 8 0v6a19 19 0 0 1-32 0z" fill="#1b97b8"/><path d="M3 22q4-6 8 0t8 0 8 0 8 0" fill="none" stroke="#fff" stroke-width="2"/></svg>
+      <span>Survive the Tide</span>
+    </div>
+    <div class="play-only">
+      <div class="hearts" id="hearts" role="img"></div>
+      <div class="score">Score <b id="score">0</b></div>
+      <button class="btn ghost sm" id="openGuide">Field guide</button>
+      <button class="btn ghost sm" id="quit">Quit</button>
+    </div>
+  </header>
+
+  <main id="screen">
+    <noscript><p style="color:#fff">This game needs JavaScript turned on.</p></noscript>
+
+    <!-- TITLE -->
+    <section id="s-title" class="screen">
+      <div class="hero">
+        <div>
+          <p class="eyebrow">Marine Biology · Intertidal zone</p>
+          <h1>Survive the Tide</h1>
+          <p class="lead">Twice a day the sea leaves the shore dry, then comes crashing back. Become an intertidal animal and make it through one full tide cycle.</p>
+          <ol class="steps">
+            <li><span class="n">1</span><span><b>Pick an organism.</b> Each one lives in a different zone.</span></li>
+            <li><span class="n">2</span><span><b>Face 9 challenges</b> about adaptations, zones, tides, food webs, and human impact.</span></li>
+            <li><span class="n">3</span><span><b>Protect your 5 hearts.</b> A wrong answer costs one. A hint costs 3 points.</span></li>
+          </ol>
+          <button class="btn cta" id="toSelect">Choose your organism →</button>
+        </div>
+        <div id="titleScene"></div>
+      </div>
+    </section>
+
+    <!-- SELECT -->
+    <section id="s-select" class="screen" hidden>
+      <div class="sel-head">
+        <h1>Choose your organism</h1>
+        <p>Read its field guide first. It lists the tools you will need to survive.</p>
+      </div>
+      <div class="cards" id="cards" role="radiogroup" aria-label="Organisms"></div>
+      <div class="sel-grid">
+        <div class="card guide" id="selGuide"><p class="empty">Pick an organism above to read its field guide.</p></div>
+        <div id="selScene"></div>
+      </div>
+      <div class="sel-actions">
+        <button class="btn ghost" id="backTitle">← Back</button>
+        <button class="btn cta" id="startBtn" disabled>Start the tide cycle →</button>
+      </div>
+    </section>
+
+    <!-- PLAY -->
+    <section id="s-play" class="screen" hidden>
+      <div class="play">
+        <div id="playScene"></div>
+        <div class="card qcard" id="qcard"></div>
+      </div>
+    </section>
+
+    <!-- END -->
+    <section id="s-end" class="screen" hidden>
+      <div class="card endcard" id="endCard"></div>
+    </section>
+  </main>
+</div>
+
+<div id="sceneWrap"></div>
+
+<dialog id="guideDlg" aria-label="Field guide">
+  <div class="dlg-head"><b>Field guide</b><button class="btn ghost sm" id="closeGuide">Close</button></div>
+  <div class="guide" id="guideBody"></div>
+</dialog>
+
+<script>
+(() => {
+'use strict';
+
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const rand = a => a[Math.floor(Math.random() * a.length)];
+const aAn = name => (/^[aeiou]/i.test(name) ? 'an ' : 'a ') + name.toLowerCase();
+
+/* ============================================================
+   Constants
+   ============================================================ */
+const HEARTS = 5, POINTS = 10, HINT_COST = 3, HEART_BONUS = 5, ROUNDS = 9;
+const MAX_SCORE = ROUNDS * POINTS + HEARTS * HEART_BONUS;
+
+const PROFILE = [[0,60],[60,64],[150,92],[200,112],[260,118],[330,150],[400,165],[460,175],[540,208],[600,222],[650,240],[700,262],[760,300],[800,320]];
+const groundY = x => {
+  for (let i = 1; i < PROFILE.length; i++) {
+    const [x1, y1] = PROFILE[i - 1], [x2, y2] = PROFILE[i];
+    if (x <= x2) return y1 + (y2 - y1) * (x - x1) / (x2 - x1);
+  }
+  return PROFILE[PROFILE.length - 1][1];
+};
+const ZONES = [
+  { k:'splash', label:'Splash', name:'Splash zone',     x0:0,   x1:150 },
+  { k:'high',   label:'High',   name:'High intertidal', x0:150, x1:330 },
+  { k:'mid',    label:'Mid',    name:'Mid intertidal',  x0:330, x1:540 },
+  { k:'low',    label:'Low',    name:'Low intertidal',  x0:540, x1:700 },
+  { k:'sub',    label:'Subtidal', name:'Subtidal',      x0:700, x1:800 },
+];
+const ZNAME = Object.fromEntries(ZONES.map(z => [z.k, z.name]));
+const CATS = {
+  adapt:{ label:'Adaptation' }, zone:{ label:'Zonation' }, tide:{ label:'Tides' },
+  eco:{ label:'Food web & ecology' }, human:{ label:'Human impact' },
+};
+
+/* Tide math: one full cycle (high to high) = 12 h 25 min, starting with high tide at 6:00 AM */
+const tideL  = t => 0.5 + 0.5 * Math.cos(2 * Math.PI * t);
+const surfY  = L => 250 - 155 * L;
+const tideFt = L => -0.5 + 6.5 * L;
+function clock(t) {
+  const m = 360 + Math.floor(t * 745), h = Math.floor(m / 60) % 24, mm = m % 60;
+  return `${((h + 11) % 12) + 1}:${String(mm).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+function phase(t) {
+  if (t < 0.04 || t > 0.96) return 'High tide';
+  if (t < 0.46) return 'Falling tide';
+  if (t <= 0.54) return 'Low tide';
+  return 'Rising tide';
+}
+
+const HEART = 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z';
+const ICO_OK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>';
+const ICO_NO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>';
+
+/* ============================================================
+   Organism artwork (drawn with the base at y=0, centered on x=0)
+   ============================================================ */
+const ART = {
+periwinkle:`<ellipse cx="2" cy="-2.5" rx="19" ry="4.5" fill="#d9c7a0"/>
+<path d="M-9 -5C-15 -20-2 -34 12 -30C24 -26 24 -8 14 -5Z" fill="#5a4a44"/>
+<path d="M-4 -9C-4 -19 5 -26 11 -22M3 -8C3 -14 9 -17 13 -14" fill="none" stroke="#a08c80" stroke-width="2" stroke-linecap="round"/>
+<path d="M-16 -5C-22 -8-22 -14-24 -19M-12 -6C-17 -12-15 -17-16 -22" fill="none" stroke="#d9c7a0" stroke-width="2.2" stroke-linecap="round"/>
+<circle cx="-24" cy="-19" r="1.7" fill="#222"/><circle cx="-16" cy="-22" r="1.7" fill="#222"/>`,
+barnacle:`<g fill="#efebe3" stroke="#b3ab9d" stroke-width="1.2" stroke-linejoin="round">
+<path d="M-27 0L-22 -15-10 -15-5 0Z"/><path d="M-9 0L-4 -23 11 -23 16 0Z"/><path d="M12 0L16 -13 26 -13 30 0Z"/></g>
+<g fill="#44444e"><ellipse cx="-16" cy="-15" rx="5" ry="2"/><ellipse cx="3.5" cy="-23" rx="6.5" ry="2.5"/><ellipse cx="21" cy="-13" rx="4" ry="1.7"/></g>
+<g stroke="#c7bfb0" stroke-width="1" fill="none"><path d="M-16 -13V-1M-9 -13L-8 -1M3 -21V-1M-2 -20L-4 -1M9 -20L12 -1M21 -11V-1"/></g>`,
+mussel:`<path d="M-23 0C-27 -14-13 -28 3 -30C16 -30 20 -14 14 0Z" fill="#232f4a"/>
+<path d="M-15 -2C-17 -12-7 -22 3 -24M-7 -2C-9 -10-1 -18 7 -20" stroke="#5470a0" stroke-width="1.6" fill="none"/>
+<path d="M2 0C0 -10 10 -20 20 -19C28 -18 30 -8 26 0Z" fill="#2f3f62"/>
+<path d="M8 -2C8 -9 14 -14 21 -14" stroke="#5f7aab" stroke-width="1.4" fill="none"/>`,
+hermit:`<g stroke="#c4552f" stroke-width="2.6" stroke-linecap="round" fill="none"><path d="M-8 -5L-16 1M-4 -4L-10 2M2 -3L-2 2"/></g>
+<path d="M-21 -9C-28 -11-30 -18-26 -23C-21 -21-19 -17-17 -12Z" fill="#e0643a"/>
+<ellipse cx="-12" cy="-8" rx="9" ry="6" fill="#e0643a"/>
+<circle cx="-15" cy="-14" r="1.7" fill="#222"/>
+<path d="M-3 -6C-5 -27 22 -37 27 -16C29 -4 14 -2 4 -3Z" fill="#efd4b4" stroke="#b08760" stroke-width="1.4"/>
+<path d="M6 -9C6 -19 17 -23 21 -17C23 -13 18 -10 15 -13" fill="none" stroke="#b08760" stroke-width="1.6"/>`,
+anemone:`<path d="M-11 0C-13 -10-10 -16-8 -18L8 -18C10 -16 13 -10 11 0Z" fill="#2f8f61"/>
+<g fill="none" stroke="#49c283" stroke-width="3.4" stroke-linecap="round">
+<path d="M-7 -18C-14 -24-19 -26-22 -33"/><path d="M-4 -18C-8 -26-11 -30-12 -38"/><path d="M-1 -18C-2 -27-1 -33-1 -42"/>
+<path d="M2 -18C3 -26 5 -32 6 -40"/><path d="M5 -18C9 -26 12 -30 13 -37"/><path d="M8 -18C14 -24 19 -26 22 -32"/></g>
+<g fill="#ff9fb5"><circle cx="-22" cy="-33" r="2.4"/><circle cx="-12" cy="-38" r="2.4"/><circle cx="-1" cy="-42" r="2.4"/><circle cx="6" cy="-40" r="2.4"/><circle cx="13" cy="-37" r="2.4"/><circle cx="22" cy="-32" r="2.4"/></g>`,
+seastar:`<g transform="translate(0 -8)"><polygon points="0,-40 6.5,-22.9 24.7,-22 10.5,-10.6 15.3,7 0,-3 -15.3,7 -10.5,-10.6 -24.7,-22 -6.5,-22.9" fill="#f2884b" stroke="#c15a22" stroke-width="1.6" stroke-linejoin="round"/>
+<g fill="#ffe2c4"><circle cx="0" cy="-30" r="1.8"/><circle cx="0" cy="-20" r="1.8"/><circle cx="-1" cy="-10" r="1.8"/><circle cx="17" cy="-18" r="1.8"/><circle cx="10" cy="-13" r="1.8"/><circle cx="-17" cy="-18" r="1.8"/><circle cx="-10" cy="-13" r="1.8"/><circle cx="8" cy="0" r="1.8"/><circle cx="-8" cy="0" r="1.8"/></g></g>`,
+};
+const iconSVG = id => `<svg viewBox="-36 -48 72 54" aria-hidden="true">${ART[id]}</svg>`;
+
+/* ============================================================
+   Content helpers.  In every event the FIRST option is the correct one;
+   options are shuffled when shown.
+   ============================================================ */
+const E = (cat, title, story, q, opts, tag, x = {}) =>
+  ({ cat, title, story, q, opts: opts.map(([t, why]) => ({ t, why })), tag, ...x });
+
+/* ============================================================
+   The six organisms (4 personal events each)
+   ============================================================ */
+const ORGS = [
+{
+  id:'periwinkle', name:'Periwinkle', sci:'Littorina', zone:'splash', type:'Snail · Mollusc',
+  blurb:'A small snail that lives at the very top of the shore, wet only by spray and the highest tides.',
+  eats:'Algae growing on the rock. You scrape it off with a <b>radula</b>, a ribbon of tiny teeth.',
+  tools:[
+    '<b>Operculum</b>: a hard “trapdoor” that seals your shell shut.',
+    '<b>Mucus</b>: glues your shell to the rock and holds moisture in.',
+    'Gills that also work like a simple lung, so you can breathe air for a while.',
+    'A strong muscular <b>foot</b> for gripping and crawling, even upshore.'],
+  enemies:'Crabs, gulls, and sea stars.',
+  fun:'Some periwinkles live so high on the shore that the sea only reaches them a few days each month.',
+  events:[
+    E('adapt','Wet rock, hungry snail',
+      'The tide is high and spray is drenching your rock. The thin film of algae on the surface is wet and soft. Dinner is served.',
+      'How do you eat it?',[
+      ['Scrape it off with your <b>radula</b>, a ribbon of tiny teeth.','Correct! The radula works like a rough tongue, scraping algae off the rock. Animals that feed this way are called grazers.'],
+      ['Sweep plankton out of the water with feathery legs.','That is how a barnacle feeds. Snails have no feathery legs.'],
+      ['Sting small fish with your tentacles.','Stinging tentacles belong to anemones. Periwinkles are grazers that eat algae.']],
+      'Feeding: grazing with a radula',{ waves:'medium' }),
+    E('adapt','The sea retreats',
+      'The tide has dropped far below you and the sun is baking the rock. The water will not return for hours, and your soft body could dry out.',
+      'What is your best move?',[
+      ['Seal your shell with the <b>operculum</b> and glue it to the rock with mucus.','Correct! The trapdoor and mucus seal lock moisture inside until water returns.'],
+      ['Open your shell wide to cool off.','Opening up lets water evaporate fast, so you would dry out even sooner.'],
+      ['Crawl onto the sunniest, flattest rock.','Hot, open rock speeds up drying. Shady crevices are much safer.']],
+      'Preventing water loss'),
+    E('adapt','A surprise shower',
+      'Clouds roll in and rain starts to fall. Fresh rainwater is running over the rock and into your crevice.',
+      'Why is rain a problem, and what should you do?',[
+      ['Fresh water upsets your body’s salt balance, so stay sealed up until it passes.','Correct! Your cells are used to salty seawater. Closing up keeps freshwater out until conditions return to normal.'],
+      ['Open up and drink the rainwater.','Fresh water would flood your cells. Your body is built for salt water.'],
+      ['Rain is harmless. It is just water.','Fresh water is very different from seawater. Sudden salinity changes are a major stress for intertidal animals.']],
+      'Salinity stress',{ sky:'rain' }),
+    E('eco','A crab on the rising tide',
+      'The tide is creeping back up. A crab is scuttling in on the incoming water. Crabs crush snail shells for a living.',
+      'How can you escape?',[
+      ['Crawl upshore, above the waterline, where crabs cannot follow for long.','Correct! Crabs need to stay wet, so higher ground is a refuge. This is one reason periwinkles live high on the shore.'],
+      ['Crawl downshore to meet the crab.','That takes you toward the predator. Lower on the shore means more crabs.'],
+      ['Sit still on open rock and hope it does not notice.','Crabs find prey by touch and chemical signals. Waiting in the open is risky.']],
+      'Escaping predators')
+  ]
+},
+{
+  id:'barnacle', name:'Acorn barnacle', sci:'Balanus / Semibalanus', zone:'high', type:'Crustacean · Arthropod',
+  blurb:'A crustacean, a relative of crabs and shrimp, that glues itself head-first to a rock and stays there for life.',
+  eats:'Plankton. At high tide you open your plates and sweep the water with feathery legs called <b>cirri</b>.',
+  tools:[
+    '<b>Calcium plates</b>: a hard shell with a “door” that closes tight and traps water inside.',
+    '<b>Cement</b>: one of the strongest natural glues, holding you to the rock.',
+    'A low cone shape that lets waves flow around you.',
+    'Your larva drifts as plankton, then picks a spot and cements down for good.'],
+  enemies:'Dogwhelks (predatory snails) and sea stars.',
+  fun:'Barnacles cannot move, so they mate by reaching out to neighbors with an extra-long reproductive organ, the longest for body size of any animal.',
+  events:[
+    E('adapt','Dinner is served',
+      'The tide is in and water covers you. Tiny plankton are drifting past.',
+      'How do you feed?',[
+      ['Open your plates and sweep plankton in with feathery <b>cirri</b>.','Correct! Barnacles are filter feeders. They kick their feathery legs through the water to trap plankton.'],
+      ['Scrape algae off the rock with a radula.','That is how snails feed. Barnacles have no radula.'],
+      ['Walk around hunting for small crabs.','Adult barnacles are cemented in place for life, so they cannot walk anywhere.']],
+      'Filter feeding',{ waves:'medium' }),
+    E('adapt','Low and dry',
+      'The tide drops away and you are out in the sun. Hot, dry air and wind will pull water from your body.',
+      'What protects you?',[
+      ['Pull your plates shut tight, trapping a little seawater inside.','Correct! Closed plates seal in moisture so your soft body stays wet until the tide returns.'],
+      ['Keep your plates open to breathe the air.','Open plates let water escape. Barnacles shut tight to survive exposure.'],
+      ['Let go and crawl down to the water.','Adult barnacles are cemented in place and cannot move.']],
+      'Preventing water loss'),
+    E('zone','Why live up here?',
+      'It is the hottest, driest part of the day. Down the shore the water is cooler and food is plentiful, but it is crowded and full of hungry predators.',
+      'Why might living in the harsh high zone actually pay off?',[
+      ['Fewer competitors and predators can survive the long dry spells up here.','Correct! Harsh conditions set the upper limit for most species. If you can tolerate drying, you get space and safety that others cannot.'],
+      ['Barnacles never need water.','Barnacles need water to feed. They simply tolerate drying better than most animals.'],
+      ['The water is more polluted lower down.','Pollution does not decide zonation. Competition, predation, and drying do.']],
+      'Zonation: living with stress'),
+    E('eco','A snail with a drill',
+      'The tide is rising. A dogwhelk, a predatory snail, is creeping toward your colony, ready to drill through your plates. It can only hunt while it is underwater.',
+      'What gives you your best chance?',[
+      ['Living high on the shore, where the whelk has less time underwater to reach and drill you.','Correct! The higher you live, the shorter the time predators can feed. Height is a defense.'],
+      ['Opening your plates wide to scare it off.','Open plates give the whelk an easy way in.'],
+      ['Growing bigger than the dogwhelk within the hour.','Barnacles grow slowly. Where you live on the shore is a far better defense.']],
+      'Predation and height',{ waves:'medium' })
+  ]
+},
+{
+  id:'mussel', name:'Mussel', sci:'Mytilus', zone:'mid', type:'Bivalve · Mollusc',
+  blurb:'A bivalve that clamps onto rock in huge, dense beds. Mussel beds are like apartment buildings for other animals.',
+  eats:'Plankton. You pump water through your gills and strain out the food.',
+  tools:[
+    '<b>Byssal threads</b>: tough, silky threads (your “beard”) that anchor you to rock.',
+    'Two hard shells and strong <b>muscles</b> that clamp shut and hold water in.',
+    'Living packed together in <b>beds</b> shares shade and moisture and softens wave force.',
+    'A thick, dark shell that protects the soft body.'],
+  enemies:'Sea stars, dogwhelks, crabs, gulls, and (on the Pacific coast) sea otters.',
+  fun:'Scientists study mussel threads to invent glues that work underwater.',
+  events:[
+    E('adapt','A big swell',
+      'A huge swell is surging in. The force of the waves is strong enough to rip weak animals off the rock.',
+      'What keeps you attached?',[
+      ['Strong <b>byssal threads</b> that anchor you to the rock.','Correct! You spin tough protein threads and stick them to the rock. If some break, you make new ones.'],
+      ['Burrowing deep into the sand.','Clams burrow in sand. Mussels live on rock and attach with threads.'],
+      ['Swimming against the current.','Adult mussels cannot swim. They hold on instead.']],
+      'Wave action: anchoring',{ waves:'rough' }),
+    E('adapt','The tide leaves',
+      'Out of the water, your gills could dry out. The afternoon sun is strong.',
+      'What do you do?',[
+      ['Clamp your shells shut with strong muscles, trapping water inside.','Correct! Your <b>adductor muscles</b> seal the shell and hold moisture in until the tide returns.'],
+      ['Gape your shells open to let the heat out.','Gaping lets water evaporate, so you would dry out faster.'],
+      ['Crawl to a nearby tide pool.','Mussels are anchored by threads and cannot scoot away quickly.']],
+      'Preventing water loss'),
+    E('adapt','Packed in',
+      'It is midday and hot. You are wedged into a bed with thousands of other mussels, shoulder to shoulder.',
+      'Why does living in a crowd help?',[
+      ['Neighbors shade each other and hold in moisture, and the bed lessens wave force.','Correct! Dense clumps reduce water loss and heat stress, and make it harder for waves to pry anyone loose.'],
+      ['It does not help. Each mussel would do better alone.','Mussels in beds survive heat and waves better than lone mussels do.'],
+      ['Crowds help them run away from predators together.','Mussels do not run. Their protection is physical: shade, moisture, and shared anchoring.']],
+      'Strength in numbers'),
+    E('eco','A sea star climbs the rocks',
+      'The tide is rising, and an ochre sea star is climbing toward your bed. It loves to eat mussels. Long ago, ecologist Robert Paine removed every sea star from a patch of shore to see what would happen.',
+      'What happened to the mussels in that patch?',[
+      ['They spread across the rock and crowded out other species, so biodiversity dropped.','Correct! Without their predator, mussels took over the space. A species with a huge effect on its community is called a <b>keystone species</b>.'],
+      ['Nothing changed. The mussels stayed the same.','Removing the predator changed the whole community. The mussel population exploded.'],
+      ['The mussels died out without their predators.','Predators do not feed their prey. Without sea stars, mussels thrive.']],
+      'Keystone predator',{ waves:'medium' })
+  ]
+},
+{
+  id:'hermit', name:'Hermit crab', sci:'Pagurus', zone:'mid', type:'Crustacean · Decapod', pool:true,
+  blurb:'A crab with a soft, unprotected back end that borrows an empty snail shell as a portable home. You live in tide pools.',
+  eats:'Almost anything: algae, dead animals, scraps. You are a <b>scavenger</b>.',
+  tools:[
+    '<b>Borrowed shell</b>: armor and a tiny water tank for your soft abdomen.',
+    '<b>Claws</b> for tearing food and for defense.',
+    'You hide under rocks and ledges, and wait out low tide in <b>tide pools</b>.',
+    'You can move to deeper, cooler, saltier water in a pool when conditions change.'],
+  enemies:'Gulls, fish, octopuses, and larger crabs.',
+  fun:'When a big shell appears, hermit crabs line up by size and swap shells in a “vacancy chain,” each crab moving up to a roomier home.',
+  events:[
+    E('eco','Scavenger on the prowl',
+      'The tide is in and you scuttle across the rocks looking for a meal. You find a dead fish and some scraps of seaweed.',
+      'What is your role in the food web?',[
+      ['Scavenger: eating dead material and recycling nutrients.','Correct! Scavengers and detritivores clean up dead material and return nutrients to the food web.'],
+      ['Producer: making food from sunlight.','Only algae and plants (producers) make food from sunlight. Crabs have to eat.'],
+      ['Filter feeder: straining plankton from the water.','Barnacles and mussels filter feed. Hermit crabs pick up food with their claws.']],
+      'Scavengers in the food web',{ waves:'medium' }),
+    E('adapt','The pool heats up',
+      'At low tide the sea has left you stranded in a small tide pool. After hours of sun, the water is getting warmer and oxygen is dropping.',
+      'What should you do?',[
+      ['Move to the shaded, deeper part of the pool, under a ledge.','Correct! Shade and depth keep the water cooler. Cold water also holds more dissolved oxygen than warm water.'],
+      ['Stay in the shallow, sunny edge to warm up.','Shallows heat up fastest, and warm water holds less oxygen.'],
+      ['Climb out and cross the dry rocks to the ocean.','Crossing dry rock exposes you to sun and to gulls. The pool is safer.']],
+      'Temperature and oxygen in tide pools'),
+    E('adapt','Rain on the pool',
+      'A rain shower pours down. Rainwater is mixing into your pool and the surface layer is becoming less salty.',
+      'Where should you go?',[
+      ['Go deeper. Fresh water is less dense and floats on top of the saltier water.','Correct! Fresh water is less dense than seawater, so it floats on top. The bottom of the pool stays saltier.'],
+      ['Stay at the surface, where the air is fresh.','The surface layer is exactly where the freshest, least salty water collects.'],
+      ['It makes no difference. Salinity is the same everywhere in the pool.','Density differences make layers form. Deeper water stays saltier.']],
+      'Salinity and density',{ sky:'rain' }),
+    E('adapt','Time for a new home',
+      'You have been growing, and your shell is getting too tight. Your soft belly is poking out, and a gull is circling overhead.',
+      'What is your best next move?',[
+      ['Find a larger empty snail shell and swap quickly, hidden under a ledge.','Correct! Hermit crabs do not make shells. They swap into bigger ones as they grow, and do it somewhere safe.'],
+      ['Wait. Your shell will grow with you.','A borrowed shell never grows. Only the snail that made it could grow it.'],
+      ['Go without a shell until you grow a hard back.','Your abdomen is soft. Without a shell you would dry out and be easy prey.']],
+      'Adaptation: the borrowed shell',{ fx:['gull'] })
+  ]
+},
+{
+  id:'anemone', name:'Green anemone', sci:'Anthopleura', zone:'low', type:'Cnidarian · Relative of jellyfish',
+  blurb:'A soft, flower-like animal that waits with stinging tentacles. Tiny algae live inside you and help feed you.',
+  eats:'Small animals that brush your tentacles, like shrimp and small crabs. You sting them, then pass them to your mouth.',
+  tools:[
+    '<b>Nematocysts</b>: stinging cells that shoot tiny harpoons into prey.',
+    'A sticky <b>foot</b> (pedal disc) that clings to rock.',
+    'When exposed to air, you fold into a ball covered with bits of shell and gravel.',
+    '<b>Algae</b> living in your tissue make sugar from sunlight and share it with you.'],
+  enemies:'Certain sea slugs (nudibranchs), sea stars, and some snails.',
+  fun:'Anemones can clone themselves by splitting in two. Neighbors from different clone groups sometimes fight with their tentacles.',
+  events:[
+    E('adapt','Something brushes your tentacles',
+      'The tide is in and your tentacles are spread like a flower. A small shrimp bumps into them.',
+      'What happens next?',[
+      ['Stinging cells (<b>nematocysts</b>) fire, paralyzing it so tentacles can pass it to your mouth.','Correct! Cnidarians capture prey with nematocysts, tiny harpoon-like stingers.'],
+      ['You scrape it up with a radula.','Radulas belong to snails and chitons, not anemones.'],
+      ['You chase it down with your claws.','Anemones have no claws or legs. They wait in place and let food come to them.']],
+      'Predators with stingers',{ waves:'medium' }),
+    E('adapt','Stranded in the air',
+      'The tide falls and you are exposed to open air with the sun overhead. Your soft body is mostly water.',
+      'What protects you?',[
+      ['Pull in your tentacles and fold into a ball, covered with bits of shell and gravel.','Correct! Curling up holds water in, and the shell bits stuck to you reflect sunlight and reduce drying.'],
+      ['Spread your tentacles wide to soak up the sun.','Open tentacles lose water fast. Anemones close up when exposed.'],
+      ['Detach and race back to the water.','Anemones move extremely slowly. You cannot outrun the tide.']],
+      'Preventing water loss'),
+    E('eco','Sunbathing',
+      'You sit in a sunny tide pool. Tiny green algae live inside your cells, and they are what make you green.',
+      'Why does a green anemone want to be in the sun?',[
+      ['Its algae photosynthesize and share sugars with it. Both partners benefit.','Correct! That is <b>mutualism</b>: the algae get shelter and nutrients, and the anemone gets extra food energy.'],
+      ['It needs sunlight to warm its blood.','Anemones have no blood and cannot control their body temperature.'],
+      ['The algae are parasites that steal its food.','Parasites harm their host. These algae help the anemone, so it is mutualism.']],
+      'Symbiosis: mutualism'),
+    E('zone','Why live down here?',
+      'Barnacles and periwinkles live way up the shore. You stay low, in the wettest zone or in a tide pool. A few hours of drying could kill you.',
+      'What mainly keeps anemones in the low zone?',[
+      ['Their soft bodies cannot handle long exposure to sun and air.','Correct! Tolerance to drying, a physical factor, sets how high up a species can live.'],
+      ['They are afraid of sunlight.','Anemones are not afraid of sunlight. Their algae actually need it. Drying out is the problem.'],
+      ['Sea stars stop them from living higher up.','Predators usually limit the lower edge of a zone. Drying out sets the upper edge.']],
+      'Zonation: upper limit')
+  ]
+},
+{
+  id:'seastar', name:'Ochre sea star', sci:'Pisaster ochraceus', zone:'low', type:'Echinoderm',
+  blurb:'A slow-moving predator with five arms, hundreds of tube feet, and no brain. You keep mussels in check.',
+  eats:'Mussels, barnacles, and snails. You pull shells open, push your stomach inside, and digest the meal in its own shell.',
+  tools:[
+    '<b>Tube feet</b>: hundreds of tiny suction feet powered by water pressure (the water vascular system).',
+    'An <b>everting stomach</b> you push out of your body to digest prey.',
+    '<b>Regeneration</b>: you can regrow lost arms.',
+    'You tuck into crevices and tide pools at low tide to stay damp.'],
+  enemies:'Gulls and (on the Pacific coast) sea otters.',
+  fun:'Sea stars have no brain and no true blood. Seawater flowing through their bodies does both jobs.',
+  events:[
+    E('adapt','Mussel for dinner',
+      'The tide is in and you have reached a mussel bed. The shells are clamped tight. You have no teeth and no claws.',
+      'How do you eat?',[
+      ['Pull the shells apart with your tube feet, then push your stomach inside to digest the mussel.','Correct! Sea stars can pry open a very narrow gap, then slip their stomach through it.'],
+      ['Crush the shell with strong claws.','Sea stars have no claws. They pry with tube feet.'],
+      ['Bite through the shell with sharp teeth.','Sea stars do not chew shells. Their mouth is on the underside of the body.']],
+      'Feeding: external digestion',{ waves:'medium' }),
+    E('adapt','Out of the water',
+      'Low tide strands you on the rocks. Your soft arms will dry out quickly in the sun.',
+      'What do you do?',[
+      ['Wedge into a shady crevice or a tide pool and tuck in your arms.','Correct! Sea stars hunker down in a damp, shaded spot to stay cool and wet until the tide returns.'],
+      ['Climb to the top of the rock for the best view.','Higher, more exposed spots dry you out faster.'],
+      ['Sit in the open. Your tough skin keeps all the water in.','Sea star skin is not waterproof. They lose water in the air.']],
+      'Preventing water loss'),
+    E('adapt','Crawling without a brain',
+      'You have no brain, no bones, and nothing that looks like legs, yet you crawl over the rocks and hold on against the waves.',
+      'What lets you move and grip?',[
+      ['Hundreds of <b>tube feet</b> powered by water pressure.','Correct! Water pressure pushes each tube foot out, and a tiny suction disc grips the rock.'],
+      ['Rows of jointed legs with claws, like a crab.','Crabs have jointed legs. Sea stars have soft tube feet.'],
+      ['A single muscular foot, like a snail.','Snails use one big foot. Sea stars use hundreds of tube feet.']],
+      'Adaptation: tube feet'),
+    E('adapt','Gull attack!',
+      'The tide is rising, but a gull swoops down, grabs one of your arms, and tears it off before you can react. One of your five arms is gone.',
+      'What happens next?',[
+      ['Your arm will slowly regrow over months, and you can survive in the meantime.','Correct! Sea stars are among the best regenerators in the animal kingdom, though it can take months or even a year.'],
+      ['You die, because sea stars cannot heal.','Sea stars can regenerate lost arms.'],
+      ['You reattach the arm to your body.','A torn-off arm cannot reattach. Instead, you regrow a new one.']],
+      'Regeneration',{ fx:['gull'] })
+  ]
+}
+];
+
+/* ============================================================
+   Shared question pools (the game draws from these every run)
+   ============================================================ */
+const POOL = {
+tide:[
+  E('tide','What moves the sea?',
+    'Twice a day, the ocean climbs up the shore and falls back again.',
+    'What is the main cause of tides?',[
+    ['The Moon’s gravity, with some help from the Sun.','Correct! The gravity of the Moon and Sun pulls on the ocean and creates bulges of water that we see as tides.'],
+    ['Wind pushing water toward the shore.','Wind makes waves, but it does not cause the daily rise and fall of the tides.'],
+    ['Ocean currents like the Gulf Stream.','Currents move water along the ocean. They do not make the shoreline rise and fall each day.']],
+    'What causes tides'),
+  E('tide','Reading the tide table',
+    'Today’s tide table says: <b>High tide 6:00 AM (6.0 ft)</b>. The water is going out.',
+    'About when will the next <i>low</i> tide happen?',[
+    ['Around 12:00 noon','Correct! It takes about 6 hours and 12 minutes to go from high tide to low tide.'],
+    ['Around 9:00 AM','That is only halfway down. The tide needs about 6 hours to go from high to low.'],
+    ['Around 6:00 PM','That is about when the next high tide arrives. Low tide is halfway between.']],
+    'Reading a tide table'),
+  E('tide','Spring tides and neap tides',
+    'Tide-poolers love the days when the sea retreats the farthest.',
+    'When do the biggest tides (highest highs and lowest lows) happen?',[
+    ['Around New Moon and Full Moon, when the Sun, Moon, and Earth line up (spring tides).','Correct! When the Sun and Moon pull in line, their effects add up, so the tidal range is biggest.'],
+    ['At First and Third Quarter Moon (neap tides).','At quarter moons the Sun and Moon pull at right angles and partly cancel, giving smaller tides.'],
+    ['Only during winter storms.','Storms can raise water levels, but the monthly pattern comes from the Sun and Moon lining up.']],
+    'Spring and neap tides'),
+  E('tide','How many tides a day?',
+    'Most coasts have a regular rhythm to their tides.',
+    'On most coasts, how many high tides happen each day?',[
+    ['Two, about 12 hours and 25 minutes apart.','Correct! Most coasts have two highs and two lows a day. A few places, like parts of the Gulf of Mexico, have only one.'],
+    ['One','A few places, like parts of the Gulf of Mexico, have one. Most coasts have two.'],
+    ['Four','Four would mean a high tide every 6 hours. Real high tides are about 12 hours 25 minutes apart.']],
+    'Tidal rhythm'),
+  E('tide','Why does the schedule slip?',
+    'Surfers and tide-poolers notice that each day’s low tide comes later than the day before.',
+    'About how much later does each tide arrive each day, and why?',[
+    ['About 50 minutes later, because the Moon moves along its orbit while Earth spins.','Correct! Earth has to spin about 50 extra minutes each day to catch up with the Moon.'],
+    ['The same time every day.','Tide times shift every day, which is why tide tables must be checked daily.'],
+    ['About 5 minutes later, because water is slow to move.','The shift is about 50 minutes, and it comes from the Moon’s orbit, not slow water.']],
+    'Tide timing'),
+  E('tide','Lower than low',
+    'Tomorrow’s tide table predicts a low tide of <b>−1.0 ft</b>. Tide-poolers are excited.',
+    'What does a negative tide mean?',[
+    ['The water drops below the usual low-water level, uncovering animals that are rarely exposed.','Correct! Negative tides uncover the low zone, so you can see animals that are usually underwater.'],
+    ['There is no water in the ocean.','Negative just means lower than the usual low-water baseline. The ocean is still there.'],
+    ['The tide table has a mistake.','Negative tides are real. They happen around New and Full Moons.']],
+    'Negative tides'),
+  E('tide','Defining the zone',
+    'A marine biologist stands on a rocky shore at low tide and points at the wet, seaweed-covered rocks.',
+    'What best describes the intertidal zone?',[
+    ['The shoreline between the high-tide line and the low-tide line, covered and uncovered by the tides.','Correct! “Inter” means between. The intertidal zone is the strip between high tide and low tide.'],
+    ['The deep ocean beyond the continental shelf.','That is open ocean. The intertidal zone is right at the edge of the land.'],
+    ['Any area near the coast that is always underwater.','Areas that are always underwater are called the subtidal zone.']],
+    'The intertidal zone defined'),
+  E('tide','Tides and mealtime',
+    'Barnacles, mussels, and anemones feed mostly when the tide is in.',
+    'Why do so many intertidal animals feed at high tide?',[
+    ['They are underwater, so food drifting in the water reaches them and they cannot dry out.','Correct! High tide brings water, food, and safety from drying. It is mealtime for many species.'],
+    ['The Moon tells them when to eat.','They respond to being covered by water, not to the Moon itself. The Moon only makes the tides.'],
+    ['Food exists only at night.','Food is in the water whenever the tide is in, day or night.']],
+    'Feeding and the tide')
+],
+zone:[
+  E('zone','Zone check: the glowing band',
+    'Look at the glowing band on the shore. Water covers it only around high tide, so it is out of the water for much of each day.',
+    'What is this zone called?',[
+    ['High intertidal zone','Correct! The high zone is covered only at high tide and exposed most of the time.'],
+    ['Low intertidal zone','The low zone is underwater most of the time and exposed only at the lowest tides.'],
+    ['Subtidal zone','The subtidal zone is always underwater, below the lowest tide line.']],
+    'Naming the zones',{ zone:'high' }),
+  E('zone','Zones from land to sea',
+    'A shore is divided into bands that get wetter as you move toward the ocean.',
+    'Which list shows the zones in order, starting at the land and moving toward the sea?',[
+    ['Splash → High → Mid → Low','Correct! The splash zone is at the very top and the low zone is closest to the sea.'],
+    ['Low → Mid → High → Splash','That list starts at the sea. The question starts at the land.'],
+    ['High → Splash → Low → Mid','The splash zone is above the high zone, and the low zone is below the mid zone.']],
+    'Order of the zones'),
+  E('zone','What sets the upper limit?',
+    'Look at the shore: each species lives in its own band. Scientists ask what keeps each species from living any higher or lower.',
+    'What mostly decides how <i>high</i> up the shore a species can live?',[
+    ['How well it tolerates drying out, heat, and other physical stress.','Correct! Up high, the water is gone for long stretches. Species that cannot handle drying cannot live there.'],
+    ['How many predators live nearby.','Predators usually matter more at the lower edge, where animals stay underwater longer.'],
+    ['How strong the wind is.','Wind matters a little, but drying and heat are far more important.']],
+    'Zonation: upper limit'),
+  E('zone','What sets the lower limit?',
+    'Look at the shore: each species lives in its own band. Scientists ask what keeps each species from living any higher or lower.',
+    'What mostly decides how <i>low</i> on the shore a species can live?',[
+    ['Competition with other species and predation.','Correct! Lower down, conditions are gentler, so rivals and predators crowd in and push some species out.'],
+    ['How hot the rocks get.','Rock temperature matters most up high, where animals are exposed to the air.'],
+    ['The phase of the Moon.','The Moon makes the tides, but it does not decide where a species can live.']],
+    'Zonation: lower limit'),
+  E('zone','Tide pools: little oceans',
+    'At low tide, hollows in the rock stay full of seawater. These are tide pools.',
+    'Why are tide pools important for intertidal animals?',[
+    ['They hold seawater, so animals can stay wet until the tide returns.','Correct! Tide pools are refuges, though they can swing in temperature, salinity, and oxygen.'],
+    ['They are completely safe from predators.','Predators visit tide pools too, and conditions can change fast.'],
+    ['They are always cooler than the ocean.','A small, shallow pool can heat up quickly in the sun.']],
+    'Tide pools as refuges'),
+  E('zone','What is zonation?',
+    'Walk down a rocky shore and you pass a band of snails, then barnacles, then mussels, then seaweed and sea stars.',
+    'What does <b>zonation</b> mean?',[
+    ['Organisms arranged in horizontal bands at different heights on the shore.','Correct! Each band matches a level of exposure to air, wave action, predators, and competitors.'],
+    ['All species are evenly mixed from top to bottom.','That is the opposite. Species cluster in distinct bands.'],
+    ['The areas of the shore that the tide never reaches.','Land above the splash zone is not part of zonation. Zonation describes the bands within the shore.']],
+    'Zonation defined'),
+  E('zone','Who lives in the glowing zone?',
+    'The glowing band at the bottom of the shore is underwater most of the time and dries out only at the lowest tides.',
+    'Which animal would you most likely find there?',[
+    ['Ochre sea star','Correct! Sea stars cannot handle much drying, so they stay low on the shore near the water.'],
+    ['Periwinkle snail','Periwinkles live high in the splash zone, where it is much drier.'],
+    ['Acorn barnacle','Acorn barnacles are mostly found higher up, where they can seal their plates shut for hours.']],
+    'Who lives where',{ zone:'low' })
+],
+human:[
+  E('human','Visitors on the rocks',
+    'A school group arrives at low tide. People are crunching across the rocks, picking up animals, and peeling things off the stone.',
+    'What is the best way for visitors to protect tide pools?',[
+    ['Walk carefully on bare rock, look but do not touch, and leave animals where they are.','Correct! Trampling crushes barnacles and mussels, and moving animals can leave them to dry out.'],
+    ['Collect a few shells and animals as souvenirs.','Taking animals removes them from their ecosystem, and many die soon after.'],
+    ['Move animals to a bucket for a better look, then dump them anywhere.','Handling and moving animals stresses them and may put them in the wrong zone.']],
+    'Trampling and collecting',{ sky:'hot' }),
+  E('human','Oil on the water',
+    'A tanker spills oil offshore. A dark slick rolls in with the tide and coats the rocks.',
+    'Why are attached animals like barnacles and mussels especially vulnerable?',[
+    ['They cannot move away, and filter feeders pull oily water through their bodies.','Correct! Attached animals cannot escape, and filter feeders take in whatever is in the water.'],
+    ['Oil only affects animals that swim.','Oil coats rocks and shells and gets into filter feeders, so attached animals are hit hard.'],
+    ['Oil sinks right away, so shore animals never touch it.','Oil floats at the surface and washes ashore with the tide.']],
+    'Oil pollution',{ water:'murk', waves:'medium' }),
+  E('human','A changing ocean',
+    'Scientists have measured that the ocean is slowly becoming more acidic as it absorbs carbon dioxide from the air.',
+    'Which intertidal animals are most threatened by ocean acidification?',[
+    ['Shell builders like mussels, barnacles, and snails.','Correct! More acidic water makes it harder to build and keep shells made of calcium carbonate.'],
+    ['Only animals that live in the splash zone.','Acidification affects seawater, so animals that build shells in the water are most at risk.'],
+    ['None. Ocean chemistry does not affect animals.','Shell-building is very sensitive to the chemistry of seawater.']],
+    'Ocean acidification'),
+  E('human','A record heat wave',
+    'A record-breaking heat wave has baked the shore all day. Rock surfaces are hotter than the air above them.',
+    'What do scientists expect to happen to intertidal life as the climate warms?',[
+    ['Heat waves at low tide can kill many animals, and species may shift toward cooler areas.','Correct! In 2021 a Pacific Northwest heat wave was estimated to have killed more than a billion shoreline animals.'],
+    ['Nothing. Intertidal animals already live with extremes, so they are immune.','Many already live near their heat limit, so extra warming can push them past it.'],
+    ['Animals will simply crawl to the water, so there is no problem.','Many are attached or slow and cannot reach the water in time.']],
+    'Climate change',{ sky:'hot' }),
+  E('human','Runoff after the storm',
+    'After a big storm, runoff from streets and farms flows into the sea, carrying fertilizer and sewage.',
+    'What can happen when this reaches the coast?',[
+    ['Algae bloom, then die and decay, using up oxygen in the water.','Correct! Extra nutrients cause algal blooms. When the algae die, decomposers use up oxygen and animals suffocate.'],
+    ['The water gets cleaner because of the extra nutrients.','Too many nutrients cause blooms and low oxygen, not cleaner water.'],
+    ['Nothing. The ocean is too big to notice.','Near shore, runoff can create low-oxygen “dead zones.”']],
+    'Nutrient pollution',{ sky:'rain', water:'murk' }),
+  E('human','Tiny plastic',
+    'Plastic bottles and bags break down into tiny pieces called microplastics that float in the water.',
+    'Which animals are most likely to take in microplastics?',[
+    ['Filter feeders like mussels and barnacles, because they strain tiny particles from the water.','Correct! Microplastics are the same size as plankton, so filter feeders can take them in along with their food.'],
+    ['Only large animals like whales.','Filter feeders of every size take in tiny particles, including mussels and barnacles.'],
+    ['None. Plastic is too small to be eaten.','Microplastics are the same size as plankton, so animals can swallow them by accident.']],
+    'Plastic pollution'),
+  E('human','A hitchhiker',
+    'A European green crab hitched a ride across the ocean in a ship’s ballast water. It has just been spotted in the tide pool.',
+    'Why can an invasive species harm native species?',[
+    ['It may have no natural predators, so it can outcompete or eat native species.','Correct! Invasive species can spread fast because their usual predators and diseases were left behind.'],
+    ['Invasive species always die quickly in new places.','Some thrive in new places and spread widely.'],
+    ['They help by adding more variety.','More species sounds good, but invaders often wipe out native species.']],
+    'Invasive species')
+],
+web:[
+  E('eco','Who makes the food?',
+    'Look at the shore: green and brown seaweed on the rocks, plus tiny floating algae in the water.',
+    'In the rocky intertidal food web, which organisms are the <b>producers</b>?',[
+    ['Seaweed and phytoplankton (algae).','Correct! Producers make their own food from sunlight by photosynthesis. Everything else depends on them.'],
+    ['Mussels and barnacles.','They are consumers. They eat plankton.'],
+    ['Sea stars.','Sea stars are consumers that eat other animals.']],
+    'Producers'),
+  E('eco','Paine’s experiment',
+    'In the 1960s, ecologist Robert Paine removed ochre sea stars from a patch of rocky shore in Washington State.',
+    'What do you think happened in that patch?',[
+    ['Mussels spread across the rock and crowded out other species, so the number of species dropped.','Correct! The number of species fell from 15 to 8. Sea stars are a <b>keystone species</b> because their effect is much bigger than their numbers.'],
+    ['More species moved in because there was extra space.','Without sea stars, mussels took over the space, so there was less room for other species.'],
+    ['Nothing changed.','Removing one key predator changed the whole community.']],
+    'Keystone species',{ skip:['mussel'] }),
+  E('eco','How much energy gets passed on?',
+    'A food chain on the shore: plankton → mussel → sea star. At each step, only about 10% of the energy is passed on. The rest is used up or lost as heat.',
+    'If the plankton eaten contained 10,000 units of energy, about how much ends up in the sea star?',[
+    ['About 100 units','Correct! 10,000 → 1,000 in the mussel → 100 in the sea star.'],
+    ['About 1,000 units','That is how much reaches the mussel. There is one more step.'],
+    ['About 5,000 units','Only about 10% moves up each level, not half.']],
+    'Energy transfer (10% rule)'),
+  E('eco','Which way does the arrow point?',
+    'A food web diagram shows an arrow pointing from a barnacle to a dogwhelk.',
+    'What does the arrow mean?',[
+    ['The dogwhelk eats the barnacle. Energy flows from the barnacle to the dogwhelk.','Correct! In food webs, arrows point toward the eater, in the direction energy flows.'],
+    ['The barnacle eats the dogwhelk.','That would make the arrow point the other way. Arrows point toward the eater.'],
+    ['They compete for the same space.','Competition is not shown by a food web arrow.']],
+    'Reading food webs'),
+  E('eco','A crowded rock',
+    'On this shore, every square inch of rock is covered by barnacles, mussels, or seaweed.',
+    'What do intertidal species compete for most?',[
+    ['Space on the rock to attach','Correct! For attached species, bare rock is the limited resource, and it fills up fast.'],
+    ['Fresh water to drink','Marine organisms live in seawater, so fresh water is not what they fight over.'],
+    ['Sunlight','Sunlight matters for algae, but for most animals the limiting resource is space.']],
+    'Competition for space'),
+  E('eco','Who cleans up?',
+    'A storm tosses kelp onto the rocks. Beach hoppers nibble it, and bacteria and fungi break down the rest.',
+    'What role do decomposers play in the ecosystem?',[
+    ['They break down dead material and return nutrients to the ecosystem.','Correct! Decomposers recycle nutrients so producers can use them again.'],
+    ['They make food from sunlight.','That is what producers do.'],
+    ['They hunt live prey.','That describes predators. Decomposers feed on dead material.']],
+    'Decomposers and recycling')
+]};
+
+/* The 9 "slots" in one tide cycle: t is the position in the tide cycle (0 = high tide) */
+const SLOTS = [
+  { kind:'org', n:0, t:0.00, sky:'clear', waves:'medium' },
+  { kind:'tide',     t:0.16, sky:'clear', waves:'calm' },
+  { kind:'zone',     t:0.30, sky:'clear', waves:'calm' },
+  { kind:'org', n:1, t:0.42, sky:'hot',   waves:'calm' },
+  { kind:'org', n:2, t:0.50, sky:'hot',   waves:'calm' },
+  { kind:'org', n:3, t:0.62, sky:'clear', waves:'calm' },
+  { kind:'tide',     t:0.76, sky:'clear', waves:'calm' },
+  { kind:'human',    t:0.90, sky:'clear', waves:'medium' },
+  { kind:'web',      t:0.98, sky:'clear', waves:'medium' },
+];
+
+/* ============================================================
+   Scene: the rocky-shore cross-section, tide HUD, and tide curve
+   ============================================================ */
+const CRITS = [
+  { o:'periwinkle', x:92,  main:1 }, { o:'periwinkle', x:134, s:.8 }, { o:'periwinkle', x:40, s:.75 },
+  { o:'barnacle',   x:262, main:1 }, { o:'barnacle',   x:196, s:.85 }, { o:'barnacle', x:312, s:.75 },
+  { o:'mussel',     x:492, main:1 }, { o:'mussel',     x:366, s:.85 }, { o:'mussel', x:522, s:.75 },
+  { o:'hermit',     x:436, main:1 },
+  { o:'anemone',    x:578, main:1 }, { o:'anemone',    x:614, s:.8 },
+  { o:'seastar',    x:646, main:1 },
+];
+
+const Scene = (() => {
+  const wrap = $('#sceneWrap');
+  let svg, waterEl, youG, ringEl, hudTime, hudTide, hudYou, curveDot, curveMarks, curveWrap;
+  let youOrg = null, youX = null, youPool = false, hlZone = null;
+  let timer = null, ambT = 0, built = false, lastArgs = null;
+  const AMP = { calm:3.5, medium:7, rough:13 };
+  const DUR = { calm:'5.5s', medium:'3.8s', rough:'2.4s' };
+  const CX = t => 16 + 288 * t, CY = L => 58 - 44 * L;
+
+  let seed = 11; const prng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+  function svgMarkup() {
+    const last = PROFILE[PROFILE.length - 1][1];
+    const air = `M0 0H800V${last} ` + PROFILE.slice().reverse().map(p => `L${p[0]} ${p[1]}`).join(' ') + 'Z';
+    const edge = 'M' + PROFILE.map(p => p.join(' ')).join(' L');
+    const ground = 'M0 400 ' + PROFILE.map(p => `L${p[0]} ${p[1]}`).join(' ') + ' L800 400Z';
+
+    let specks = '';
+    for (let i = 0; i < 110; i++) {
+      const x = prng() * 800, gy = groundY(x), y = gy + 6 + prng() * Math.max(4, 392 - gy), r = 1 + prng() * 3.2;
+      specks += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${prng() < .5 ? 'rgba(255,255,255,.09)' : 'rgba(0,0,0,.16)'}"/>`;
+    }
+    const weed = (x, col, h, d) => {
+      const y = groundY(x) + 3;
+      return `<g transform="translate(${x} ${y})"><g class="weed" style="animation-delay:${d}s"><path d="M0 0C-7 ${-h*.35} 7 ${-h*.65} 0 ${-h}" fill="none" stroke="${col}" stroke-width="4.5" stroke-linecap="round"/><path d="M5 0C0 ${-h*.3} 11 ${-h*.55} 7 ${-h*.8}" fill="none" stroke="${col}" stroke-width="3.5" stroke-linecap="round"/></g></g>`;
+    };
+    const weeds = [[340,'#8a6a2f',30,0],[352,'#7d5f27',24,1],[526,'#8a6a2f',32,.6],[536,'#7d5f27',26,1.7],
+                   [556,'#3f8f4a',36,.3],[596,'#3f8f4a',34,1.2],[626,'#357f40',30,.8],[672,'#2f7a46',44,.2],[690,'#2b6f3c',52,1.4],[730,'#2b6f3c',48,.9]]
+                  .map(w => weed(...w)).join('');
+
+    const poolY = groundY(436) + 1;
+    const crits = CRITS.map((c, i) => {
+      const s = (c.s || 1) * 1.15, y = groundY(c.x) + 1;
+      return `<g class="crit" data-o="${c.o}" data-main="${c.main ? 1 : 0}" transform="translate(${c.x} ${y}) scale(${s})"><g class="art">${ART[c.o]}</g></g>`;
+    }).join('');
+
+    const cloud = (x, y, s, cls) => `<g transform="translate(${x} ${y}) scale(${s})"><g class="cloud ${cls}"><ellipse rx="36" ry="14"/><ellipse cx="22" cy="-8" rx="24" ry="15"/><ellipse cx="-22" cy="-5" rx="22" ry="12"/></g></g>`;
+    let rain = '';
+    for (let i = 0; i < 46; i++) {
+      const x = prng() * 840 - 20, y = prng() * 400;
+      rain += `<line x1="${x.toFixed(0)}" y1="${y.toFixed(0)}" x2="${(x - 5).toFixed(0)}" y2="${(y + 15).toFixed(0)}"/>`;
+    }
+    let rays = '';
+    for (let i = 0; i < 12; i++) rays += `<rect x="-2.5" y="-46" width="5" height="12" rx="2.5" transform="rotate(${i * 30})"/>`;
+
+    return `<svg class="scene" viewBox="0 0 800 350" role="img" aria-label="Rocky shore cross-section">
+<defs>
+ <linearGradient id="gClear" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4fb0ee"/><stop offset="1" stop-color="#d7f1ff"/></linearGradient>
+ <linearGradient id="gHot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f08a3c"/><stop offset="1" stop-color="#ffe6b0"/></linearGradient>
+ <linearGradient id="gRain" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#58697b"/><stop offset="1" stop-color="#a9b6c2"/></linearGradient>
+ <linearGradient id="gRock" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#85776a"/><stop offset="1" stop-color="#3f3832"/></linearGradient>
+ <linearGradient id="gWater" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34b2d0" stop-opacity=".62"/><stop offset="1" stop-color="#0b4f78" stop-opacity=".86"/></linearGradient>
+ <linearGradient id="gMurk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7d6a3c" stop-opacity=".78"/><stop offset="1" stop-color="#3a2f1a" stop-opacity=".92"/></linearGradient>
+ <clipPath id="cAir"><path d="${air}"/></clipPath>
+ <clipPath id="cGround"><path d="${ground}"/></clipPath>
+</defs>
+<g id="skies">
+ <rect class="sky" data-k="clear" width="800" height="400" fill="url(#gClear)"/>
+ <rect class="sky" data-k="hot" width="800" height="400" fill="url(#gHot)" style="opacity:0"/>
+ <rect class="sky" data-k="rain" width="800" height="400" fill="url(#gRain)" style="opacity:0"/>
+</g>
+<g class="sun" id="sun" transform="translate(712 54)"><g class="sunin"><circle class="glow" r="46" fill="#ffd35c" opacity=".3"/><g class="rays" fill="#ffd35c">${rays}</g><circle class="core" r="25" fill="#ffd35c"/></g></g>
+<g class="clouds" id="cloudsL" fill="#fff" opacity=".85">${cloud(250,44,1,'')}${cloud(520,30,.8,'')}${cloud(640,86,.55,'')}</g>
+<g class="clouds" id="cloudsD" fill="#4d5b69" style="opacity:0">${cloud(210,40,1.15,'')}${cloud(430,28,1,'')}${cloud(640,50,1.2,'')}</g>
+<g class="divs">${[150,330,540,700].map(x => `<line x1="${x}" x2="${x}" y1="0" y2="${groundY(x).toFixed(1)}"/>`).join('')}</g>
+<g clip-path="url(#cGround)">
+ <path d="${ground}" fill="url(#gRock)"/>
+ ${specks}
+ ${ZONES.slice(0, 4).map(z => `<rect class="band" data-z="${z.k}" x="${z.x0}" y="0" width="${z.x1 - z.x0}" height="400"/>`).join('')}
+</g>
+<path d="${edge}" fill="none" stroke="#a89886" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<ellipse cx="436" cy="${poolY + 2}" rx="38" ry="7.5" fill="#3aa9c6" opacity=".92" transform="rotate(9 436 ${poolY + 2})"/>
+<ellipse cx="428" cy="${poolY}" rx="18" ry="2.2" fill="#fff" opacity=".35" transform="rotate(9 436 ${poolY + 2})"/>
+${weeds}
+${crits}
+<g clip-path="url(#cAir)"><g id="water" style="transform:translateY(95px)"><g class="wavemove">
+ <path id="wBlue" class="wp" fill="url(#gWater)"/>
+ <path id="wMurk" class="wp murk" fill="url(#gMurk)"/>
+ <path id="wCrest" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="2.2"/>
+</g></g></g>
+<g id="you" style="display:none"><circle class="ring" id="ring" r="27" cy="-17" fill="none" stroke-width="4"/>
+ <g class="ytag" transform="translate(0 -62)"><rect x="-19" y="-11" width="38" height="19" rx="9.5"/><text y="3">YOU</text><path d="M-4.5 8h9L0 13z"/></g></g>
+<g class="rainwrap" id="rain" style="opacity:0" stroke="rgba(225,238,255,.7)" stroke-width="1.5" stroke-linecap="round"><g class="rainfall"><g>${rain}</g><g transform="translate(0 -400)">${rain}</g></g></g>
+<g class="gullg"><g transform="scale(2)"><path d="M-14 4Q-7 -8 0 2Q7 -8 14 4"/></g></g>
+</svg>`;
+  }
+
+  function curveMarkup() {
+    let d = '';
+    for (let i = 0; i <= 50; i++) { const t = i / 50; d += (i ? ' L' : 'M') + CX(t).toFixed(1) + ' ' + CY(tideL(t)).toFixed(1); }
+    const lab = (t, a) => `<text x="${CX(t)}" y="79" text-anchor="${a}" font-size="10" fill="#47627a" font-weight="700">${clock(t)}</text>`;
+    return `<svg class="curve" viewBox="0 0 320 84" role="img" aria-label="Tide height over one tide cycle">
+<defs><linearGradient id="gCurve" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b97b8" stop-opacity=".35"/><stop offset="1" stop-color="#1b97b8" stop-opacity=".05"/></linearGradient></defs>
+<path d="${d} L${CX(1)} 62 L${CX(0)} 62Z" fill="url(#gCurve)"/>
+<line x1="12" x2="308" y1="62" y2="62" stroke="#c4d6df"/>
+<path d="${d}" fill="none" stroke="#1b97b8" stroke-width="2.4" stroke-linejoin="round"/>
+<text x="${CX(0) + 5}" y="11" font-size="9.5" fill="#47627a" font-weight="700">HIGH</text>
+<text x="${CX(.5)}" y="${CY(0) - 5}" text-anchor="middle" font-size="9.5" fill="#47627a" font-weight="700">LOW</text>
+<g id="cMarks"></g>
+${lab(0, 'start')}${lab(.5, 'middle')}${lab(1, 'end')}
+<circle id="cDot" r="6.5" fill="#ffc94d" stroke="#0b2a3c" stroke-width="2.2" cx="16" cy="14"/>
+</svg>`;
+  }
+
+  function build() {
+    if (built) return; built = true;
+    wrap.innerHTML = `
+<div class="zstrip" id="zstrip">${ZONES.map(z => `<span data-z="${z.k}" style="width:${(z.x1 - z.x0) / 8}%" title="${z.name}">${z.label}</span>`).join('')}</div>
+${svgMarkup()}
+<div class="hud">
+ <div class="tiles">
+  <div class="tile"><small>Time</small><b id="hTime">6:00 AM</b></div>
+  <div class="tile"><small>Tide height</small><b id="hTide">6.0 ft<span>High tide</span></b></div>
+  <div class="tile" id="hYouTile" hidden><small>You are</small><b id="hYou">–</b></div>
+ </div>
+ ${curveMarkup()}
+</div>`;
+    svg = $('svg.scene', wrap); waterEl = $('#water', wrap); youG = $('#you', wrap); ringEl = $('#ring', wrap);
+    hudTime = $('#hTime', wrap); hudTide = $('#hTide', wrap); hudYou = $('#hYou', wrap);
+    curveDot = $('#cDot', wrap); curveMarks = $('#cMarks', wrap);
+    setWaves('medium');
+  }
+
+  function setWaves(w) {
+    const A = AMP[w] || AMP.calm;
+    const top = `M-100 0q25 ${-A} 50 0` + ' t50 0'.repeat(21);
+    $('#wBlue', wrap).setAttribute('d', top + ' L1000 520 L-100 520Z');
+    $('#wMurk', wrap).setAttribute('d', top + ' L1000 520 L-100 520Z');
+    $('#wCrest', wrap).setAttribute('d', top);
+    svg.style.setProperty('--wdur', DUR[w] || DUR.calm);
+  }
+
+  function setZone(z) {
+    hlZone = z;
+    $$('.band', wrap).forEach(b => b.classList.toggle('on', b.dataset.z === z));
+    $$('#zstrip span', wrap).forEach(s => s.classList.toggle('on', s.dataset.z === z));
+  }
+
+  function set(args) {
+    lastArgs = args;
+    const { t, sky = 'clear', waves = 'calm', water = 'blue', fx = [], zone } = args;
+    const L = tideL(t);
+    waterEl.style.transform = `translateY(${surfY(L)}px)`;
+    $$('.sky', svg).forEach(r => r.style.opacity = (r.dataset.k === sky || (sky === 'storm' && r.dataset.k === 'rain')) ? 1 : 0);
+    const sunny = sky === 'clear' || sky === 'hot';
+    const sun = $('#sun', svg); sun.style.opacity = sunny ? 1 : 0; sun.classList.toggle('hot', sky === 'hot');
+    $('#cloudsL', svg).style.opacity = sky === 'clear' ? .85 : sky === 'hot' ? .3 : 0;
+    $('#cloudsD', svg).style.opacity = sky === 'rain' || sky === 'storm' ? 1 : 0;
+    $('#rain', svg).style.opacity = sky === 'rain' || sky === 'storm' ? 1 : 0;
+    svg.classList.toggle('murk', water === 'murk');
+    setWaves(waves);
+    svg.classList.remove('gull');
+    if (fx.includes('gull')) { void svg.getBoundingClientRect(); svg.classList.add('gull'); }
+    setZone(zone || (youOrg ? ORGS.find(o => o.id === youOrg).zone : null));
+
+    hudTime.textContent = clock(t);
+    hudTide.innerHTML = `${tideFt(L).toFixed(1)} ft<span>${phase(t)}</span>`;
+    let status = '';
+    if (youOrg) {
+      const sub = surfY(L) < groundY(youX) - 6;
+      hudYou.textContent = sub ? 'Underwater' : (youPool ? 'In a tide pool' : 'In the air');
+      hudYou.className = sub ? 'wet' : (youPool ? 'pool' : 'dry');
+      status = `${ORGS.find(o => o.id === youOrg).name} is ${hudYou.textContent.toLowerCase()}. `;
+    }
+    curveDot.setAttribute('cx', CX(t).toFixed(1));
+    curveDot.setAttribute('cy', CY(L).toFixed(1));
+    svg.setAttribute('aria-label', `Rocky shore cross-section. ${clock(t)}, ${phase(t).toLowerCase()}, ${tideFt(L).toFixed(1)} feet. ${status}`);
+  }
+
+  function setYou(id) {
+    youOrg = id;
+    const main = CRITS.find(c => c.o === id && c.main);
+    youX = main ? main.x : null;
+    youPool = !!(id && ORGS.find(o => o.id === id).pool);
+    $$('.crit', svg).forEach(c => {
+      const isYou = !!id && c.dataset.o === id && c.dataset.main === '1';
+      c.classList.toggle('you', isYou);
+      c.classList.toggle('dim', !!id && !isYou);
+    });
+    youG.style.display = id ? '' : 'none';
+    $('#hYouTile', wrap).hidden = !id;
+    if (id) youG.setAttribute('transform', `translate(${youX} ${groundY(youX) + 1})`);
+    setZone(id ? ORGS.find(o => o.id === id).zone : null);
+    if (lastArgs) set({ ...lastArgs, zone:undefined });
+  }
+
+  function setMarks(ts) {
+    curveMarks.innerHTML = ts.map((t, i) => `<circle data-i="${i}" cx="${CX(t).toFixed(1)}" cy="${CY(tideL(t)).toFixed(1)}" r="3.4" fill="#fff" stroke="#1b97b8" stroke-width="2"/>`).join('');
+  }
+  function setCur(i) {
+    $$('circle', curveMarks).forEach(c => {
+      const k = +c.dataset.i;
+      c.setAttribute('fill', k < i ? '#1b97b8' : '#fff');
+      c.setAttribute('r', k === i ? 0 : 3.4);
+    });
+  }
+  function pulse(ok) {
+    ringEl.setAttribute('class', 'ring');
+    void ringEl.getBoundingClientRect();
+    ringEl.setAttribute('class', 'ring ' + (ok ? 'good' : 'bad'));
+  }
+
+  function ambient(on) {
+    clearInterval(timer); timer = null;
+    if (!on) return;
+    const step = () => {
+      ambT = (ambT + 0.07) % 1;
+      set({ t: ambT, sky: (ambT > .36 && ambT < .64) ? 'hot' : 'clear', waves: 'medium' });
+    };
+    step(); timer = setInterval(step, 3600);
+  }
+  function mount(el) { build(); el.appendChild(wrap); }
+
+  return { build, set, setYou, setMarks, setCur, pulse, ambient, mount };
+})();
+
+/* ============================================================
+   Game state and UI
+   ============================================================ */
+const G = { sel:null, org:null, seq:[], i:0, hearts:HEARTS, score:0, answered:false, hinted:false, results:[], done:new Set() };
+const screens = { title:$('#s-title'), select:$('#s-select'), play:$('#s-play'), end:$('#s-end') };
+
+function show(name) {
+  Object.entries(screens).forEach(([k, el]) => { el.hidden = k !== name; });
+  document.body.dataset.screen = name;
+  window.scrollTo(0, 0);
+  if (name === 'title')  { Scene.mount($('#titleScene')); Scene.setYou(null); Scene.ambient(true); }
+  if (name === 'select') { Scene.mount($('#selScene')); Scene.setYou(G.sel); Scene.ambient(true); }
+  if (name === 'play')   { Scene.mount($('#playScene')); Scene.ambient(false); }
+  if (name === 'end')    { Scene.ambient(false); }
+}
+
+function guideHTML(o) {
+  return `<div class="g-head"><div class="g-icon">${iconSVG(o.id)}</div>
+    <div><h3>${o.name}</h3><p class="sci"><i>${o.sci}</i> · ${o.type}</p><span class="zb z-${o.zone}">${ZNAME[o.zone]}</span></div></div>
+  <p>${o.blurb}</p>
+  <h4>How you eat</h4><p>${o.eats}</p>
+  <h4>Your survival toolkit</h4><ul>${o.tools.map(t => `<li>${t}</li>`).join('')}</ul>
+  <h4>Who eats you</h4><p>${o.enemies}</p>
+  <p class="fun"><b>Did you know?</b> ${o.fun}</p>`;
+}
+
+/* ----- select screen ----- */
+function renderCards() {
+  $('#cards').innerHTML = ORGS.map(o => `
+    <button class="pick" role="radio" aria-checked="${G.sel === o.id}" data-id="${o.id}">
+      ${G.done.has(o.id) ? '<span class="done">Survived ✓</span>' : ''}
+      ${iconSVG(o.id)}<span class="nm">${o.name}</span><span class="zb z-${o.zone}">${ZNAME[o.zone]}</span>
+    </button>`).join('');
+  $$('.pick').forEach(b => b.addEventListener('click', () => pickOrg(b.dataset.id)));
+}
+function pickOrg(id) {
+  G.sel = id;
+  $$('.pick').forEach(b => b.setAttribute('aria-checked', String(b.dataset.id === id)));
+  $('#selGuide').innerHTML = guideHTML(ORGS.find(o => o.id === id));
+  $('#startBtn').disabled = false;
+  Scene.setYou(id);
+}
+
+/* ----- play ----- */
+function buildSequence(org) {
+  const t = shuffle(POOL.tide).slice(0, 2);
+  const pick = { zone:[rand(POOL.zone)], human:[rand(POOL.human)],
+                 web:[rand(POOL.web.filter(e => !(e.skip || []).includes(org.id)))] };
+  const used = { tide:0, zone:0, human:0, web:0 };
+  return SLOTS.map(s => {
+    const ev = s.kind === 'org' ? org.events[s.n]
+             : s.kind === 'tide' ? t[used.tide++]
+             : pick[s.kind][used[s.kind]++];
+    return { ...ev, t:s.t, sky:ev.sky || s.sky, waves:ev.waves || s.waves };
+  });
+}
+function startGame(id) {
+  const org = ORGS.find(o => o.id === id);
+  Object.assign(G, { org, seq:buildSequence(org), i:0, hearts:HEARTS, score:0, results:[], answered:false, hinted:false });
+  show('play');
+  Scene.setYou(id);
+  Scene.setMarks(G.seq.map(e => e.t));
+  renderHearts(); renderScore(); renderQ();
+}
+function renderHearts(lostIndex = -1) {
+  const el = $('#hearts');
+  el.setAttribute('aria-label', `${G.hearts} of ${HEARTS} hearts left`);
+  el.innerHTML = Array.from({ length:HEARTS }, (_, i) =>
+    `<svg viewBox="0 0 24 24" class="${i < G.hearts ? '' : 'lost'}${i === lostIndex ? ' pop' : ''}" aria-hidden="true"><path d="${HEART}"/></svg>`).join('');
+}
+function renderScore() { $('#score').textContent = G.score; }
+
+function renderQ() {
+  const e = G.seq[G.i];
+  G.answered = false; G.hinted = false;
+  G.order = shuffle(e.opts.map((_, k) => k));
+  Scene.set({ t:e.t, sky:e.sky, waves:e.waves, water:e.water, fx:e.fx || [], zone:e.zone });
+  Scene.setCur(G.i);
+  $('#qcard').innerHTML = `
+    <div class="qtop"><span class="chip c-${e.cat}">${CATS[e.cat].label}</span><span class="rnd">Round ${G.i + 1} of ${ROUNDS}</span></div>
+    <h2 id="qtitle" tabindex="-1">${e.title}</h2>
+    <p class="story">${e.story}</p>
+    <p class="ask">${e.q}</p>
+    <div class="opts" role="group" aria-label="Answer choices">
+      ${G.order.map((k, j) => `<button class="opt" data-k="${k}"><span class="k">${j + 1}</span><span class="t">${e.opts[k].t}</span></button>`).join('')}
+    </div>
+    <div class="qfoot"><button class="btn ghost sm" id="hint">Use a hint (−${HINT_COST} pts)</button>
+      <span class="keys">Keys: 1–${e.opts.length} to answer · H for a hint</span></div>
+    <div class="fb" id="fb" aria-live="polite"></div>`;
+  $$('.opt').forEach(b => b.addEventListener('click', () => choose(+b.dataset.k)));
+  $('#hint').addEventListener('click', useHint);
+  $('#qtitle').focus({ preventScroll:true });
+}
+
+function useHint() {
+  if (G.answered || G.hinted) return;
+  const wrongs = $$('.opt').filter(b => b.dataset.k !== '0' && !b.classList.contains('gone'));
+  if (wrongs.length < 2) return;
+  rand(wrongs).classList.add('gone');
+  G.hinted = true;
+  const h = $('#hint'); h.disabled = true; h.textContent = `Hint used (−${HINT_COST} pts)`;
+}
+
+function choose(k) {
+  if (G.answered) return;
+  const btn = $(`.opt[data-k="${k}"]`);
+  if (!btn || btn.classList.contains('gone')) return;
+  G.answered = true;
+  const e = G.seq[G.i], ok = k === 0;
+  const pts = ok ? POINTS - (G.hinted ? HINT_COST : 0) : 0;
+  G.score += pts;
+  let lost = -1;
+  if (!ok) { G.hearts--; lost = G.hearts; }
+  G.results.push({ cat:e.cat, title:e.title, tag:e.tag, ok, key:e.opts[0].why });
+
+  $$('.opt').forEach(b => {
+    b.disabled = true;
+    if (b.dataset.k === '0') b.classList.add('right');
+    else if (b === btn) b.classList.add('wrong');
+    else b.classList.add('faded');
+  });
+  $('#hint').disabled = true;
+  renderHearts(lost); renderScore(); Scene.pulse(ok);
+
+  const dead = G.hearts <= 0, last = G.i >= ROUNDS - 1;
+  const goLabel = dead ? 'See what happened →' : last ? 'See my results →' : 'Next round →';
+  const lead = ok ? rand(['Correct!', 'Nice work!', 'Exactly right!']) : 'Not quite.';
+  const chip = ok ? `+${pts} pts` : '−1 heart';
+  $('#fb').innerHTML = `<div class="box ${ok ? 'ok' : 'no'}">
+    <div class="h">${ok ? ICO_OK : ICO_NO}<b>${lead}</b><span class="tagline">${chip}</span></div>
+    ${ok ? `<p>${e.opts[0].why.replace(/^Correct!\s*/, '')}</p>`
+         : `<p>${e.opts[k].why}</p><p class="best"><b>Best choice:</b> ${e.opts[0].t}<br>${e.opts[0].why.replace(/^Correct!\s*/, '')}</p>`}
+    <div class="go"><button class="btn primary" id="next">${goLabel}</button></div></div>`;
+  const n = $('#next'); n.addEventListener('click', next); n.focus({ preventScroll:false });
+  n.scrollIntoView({ block:'nearest', behavior:'smooth' });
+}
+
+function next() {
+  if (!G.answered) return;
+  if (G.hearts <= 0) return finish(false);
+  if (G.i >= ROUNDS - 1) return finish(true);
+  G.i++; renderQ();
+}
+
+/* ----- end ----- */
+function finish(survived) {
+  if (survived) G.done.add(G.org.id);
+  const o = G.org, bonus = survived ? G.hearts * HEART_BONUS : 0, total = G.score + bonus;
+  const pct = total / MAX_SCORE;
+  const rating = !survived ? '' : pct >= .9 ? 'Keystone Species' : pct >= .75 ? 'Zone Master' : pct >= .55 ? 'Tide Pool Regular' : 'Hanging On';
+
+  const by = {};
+  G.results.forEach(r => { (by[r.cat] = by[r.cat] || { ok:0, n:0 }).n++; if (r.ok) by[r.cat].ok++; });
+  const skills = Object.keys(CATS).filter(c => by[c]).map(c => {
+    const v = by[c];
+    return `<div class="skill"><span>${CATS[c].label}</span><span class="bar"><i style="width:${Math.round(v.ok / v.n * 100)}%"></i></span><span class="num">${v.ok}/${v.n}</span></div>`;
+  }).join('');
+  const recap = G.results.map(r => `<li class="${r.ok ? 'y' : 'n'}">${r.ok ? ICO_OK : ICO_NO}<div><b>${r.title}</b><span>${r.key.replace(/^Correct!\s*/, '')}</span></div></li>`).join('');
+
+  $('#endCard').className = 'card endcard ' + (survived ? 'win' : 'lose');
+  $('#endCard').innerHTML = `
+  <div class="end-head">
+    <div class="end-icon">${iconSVG(o.id)}</div>
+    <div>
+      <p class="eyebrow">${survived ? 'Tide cycle complete' : 'Washed out'}</p>
+      <h1>${survived ? `You survived as ${aAn(o.name)}!` : 'The tide got the best of you'}</h1>
+      <p>${survived
+        ? `You made it through a full tide cycle with ${G.hearts} ${G.hearts === 1 ? 'heart' : 'hearts'} left.`
+        : 'That was your last heart. Life on the shore is tough, and most intertidal larvae never reach adulthood. Check what you missed below, then try again.'}</p>
+      ${rating ? `<span class="rating">${rating}</span>` : ''}
+    </div>
+    <div class="bigscore"><b>${total}</b><span>of ${MAX_SCORE} points${bonus ? `<br>(includes +${bonus} for hearts left)` : ''}</span></div>
+  </div>
+  <div class="end-cols">
+    <div><h3>Your skills</h3>${skills}</div>
+    <div><h3>What each round taught</h3><ul class="recap">${recap}</ul></div>
+  </div>
+  <div class="end-actions">
+    <button class="btn primary" id="again">Play again as ${aAn(o.name)}</button>
+    <button class="btn ghost" id="another">Choose another organism</button>
+    <span class="shot">Tip: take a screenshot to show your teacher.</span>
+  </div>`;
+  $('#again').addEventListener('click', () => startGame(o.id));
+  $('#another').addEventListener('click', () => { renderCards(); if (G.sel) pickOrg(G.sel); show('select'); });
+  show('end');
+}
+
+/* ----- wiring ----- */
+$('#toSelect').addEventListener('click', () => { renderCards(); show('select'); });
+$('#backTitle').addEventListener('click', () => show('title'));
+$('#startBtn').addEventListener('click', () => { if (G.sel) startGame(G.sel); });
+$('#quit').addEventListener('click', () => { if (confirm('Quit this run and go back to organism select?')) { renderCards(); if (G.sel) pickOrg(G.sel); show('select'); } });
+
+const dlg = $('#guideDlg');
+$('#openGuide').addEventListener('click', () => {
+  $('#guideBody').innerHTML = guideHTML(G.org);
+  if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+});
+$('#closeGuide').addEventListener('click', () => dlg.close ? dlg.close() : dlg.removeAttribute('open'));
+dlg.addEventListener('click', e => { if (e.target === dlg && dlg.close) dlg.close(); });
+
+document.addEventListener('keydown', e => {
+  if (dlg.open || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (document.body.dataset.screen !== 'play') return;
+  if (!G.answered) {
+    if (/^[1-4]$/.test(e.key)) { const b = $$('.opt')[+e.key - 1]; if (b) b.click(); }
+    else if (e.key === 'h' || e.key === 'H') $('#hint') && $('#hint').click();
+  } else if (e.key === 'Enter' && document.activeElement !== $('#next')) {
+    e.preventDefault(); next();
+  }
+});
+
+renderCards();
+show('title');
+})();
+</script>
+</body>
+</html>
