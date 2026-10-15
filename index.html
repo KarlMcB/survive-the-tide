@@ -115,12 +115,11 @@ svg.curve{width:100%;height:auto;display:block;max-height:92px}
 @keyframes wave{to{transform:translateX(-100px)}}
 .wp.murk{opacity:0;transition:opacity 1.2s}
 svg.murk .wp.murk{opacity:1}
-.sky{transition:opacity 1.2s}
-.sun,.clouds,.rainwrap{transition:opacity 1.2s}
+.sun .core,.sun .glow,.sun .rays{fill:var(--sunc,#ffd84f)}
 .sun .rays{transform-box:fill-box;transform-origin:center;animation:spin 40s linear infinite}
-.sun.hot .core{fill:#ff9a2a}.sun.hot .glow{fill:#ff8a1f}
-.sunin{transition:transform 1s;transform-box:fill-box;transform-origin:center}
-.sun.hot .sunin{transform:scale(1.25)}
+.sunin{transform-box:fill-box;transform-origin:center}
+#stars circle{animation:twinkle 3.2s ease-in-out infinite alternate}
+@keyframes twinkle{from{opacity:.4}to{opacity:1}}
 @keyframes spin{to{transform:rotate(360deg)}}
 .cloud{animation:drift 36s ease-in-out infinite alternate}
 @keyframes drift{from{transform:translateX(-24px)}to{transform:translateX(24px)}}
@@ -353,9 +352,52 @@ const CATS = {
 const tideL  = t => 0.5 + 0.5 * Math.cos(2 * Math.PI * t);
 const surfY  = L => 250 - 155 * L;
 const tideFt = L => -0.5 + 6.5 * L;
-function clock(t) {
-  const m = 360 + Math.floor(t * 745), h = Math.floor(m / 60) % 24, mm = m % 60;
+const CYCLE_START = 360, CYCLE_LEN = 745;   // minutes after midnight, and minutes from one high tide to the next
+const SUNRISE = 390, SUNSET = 1110;          // 6:30 AM and 6:30 PM
+function clockM(m) {
+  m = Math.floor(((m % 1440) + 1440) % 1440);
+  const h = Math.floor(m / 60), mm = m % 60;
   return `${((h + 11) % 12) + 1}:${String(mm).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+const clock = t => clockM(CYCLE_START + Math.floor(t * CYCLE_LEN));
+const tOfMin = m => ((((m - CYCLE_START) / CYCLE_LEN) % 1) + 1) % 1;
+function period(m) {
+  m = ((m % 1440) + 1440) % 1440;
+  if (m < 330) return 'Night';
+  if (m < SUNRISE) return 'Dawn';          // 5:30 to 6:30 AM
+  if (m < 1050) return 'Day';
+  if (m < SUNSET) return 'Sunset';
+  if (m < 1170) return 'Dusk';
+  return 'Night';
+}
+
+/* Sky colors by time of day (minutes after midnight): top color, bottom color, and daylight D (0 = dark, 1 = bright) */
+const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mixRGB = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
+const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const SKY_KF = [
+  [   0, '#06102b', '#15244b', 0   ],
+  [ 315, '#06102b', '#15244b', 0   ],
+  [ 345, '#26367a', '#6b5a9c', .2  ],
+  [ 360, '#3c5aa8', '#d695a8', .5  ],
+  [ 390, '#6a8bd2', '#ffa571', .75 ],
+  [ 435, '#59aee9', '#ffe2bd', .92 ],
+  [ 510, '#4fb0ee', '#d7f1ff', 1   ],
+  [ 990, '#4fb0ee', '#d7f1ff', 1   ],
+  [1050, '#5aa6de', '#ffe3ad', .9  ],
+  [1110, '#6a5aa0', '#ff9a63', .5  ],
+  [1140, '#3d3a7e', '#c8648f', .3  ],
+  [1170, '#1e2b60', '#524a86', .15 ],
+  [1230, '#06102b', '#15244b', 0   ],
+  [1440, '#06102b', '#15244b', 0   ],
+].map(([m, a, b, d]) => ({ m, a:hex2rgb(a), b:hex2rgb(b), d }));
+function skyAt(m) {
+  m = ((m % 1440) + 1440) % 1440;
+  let i = 1;
+  while (i < SKY_KF.length - 1 && SKY_KF[i].m < m) i++;
+  const k0 = SKY_KF[i - 1], k1 = SKY_KF[i], f = (m - k0.m) / (k1.m - k0.m);
+  return { top:mixRGB(k0.a, k1.a, f), bot:mixRGB(k0.b, k1.b, f), D:k0.d + (k1.d - k0.d) * f };
 }
 function phase(t) {
   if (t < 0.04 || t > 0.96) return 'High tide';
@@ -904,7 +946,13 @@ const Scene = (() => {
   const wrap = $('#sceneWrap');
   let svg, waterEl, youG, ringEl, hudTime, hudTide, hudYou, curveDot, curveMarks, curveWrap;
   let youOrg = null, youX = null, youPool = false, hlZone = null;
-  let timer = null, ambT = 0, built = false, lastArgs = null;
+  let timer = null, ambMin = 540, built = false;
+  let skyTop, skyBot, rainTop, rainBot, rainSkyEl, hazeEl, rainEl, sunEl, sunIn, moonEl, starsEl, cloudsL, cloudsD, nightOv;
+  const view = { min:540, t:.25, L:.5 };            // what the HUD is showing
+  const S = { min:540, rain:0, heat:0 };            // animated sky state
+  let tw = 0;
+  const SUN_LOW = hex2rgb('#ff7f3a'), SUN_HI = hex2rgb('#ffd84f'), SUN_HOT = hex2rgb('#fff3b0');
+  const reduceMotion = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const AMP = { calm:3.5, medium:7, rough:13 };
   const DUR = { calm:'5.5s', medium:'3.8s', rough:'2.4s' };
   const CX = t => 16 + 288 * t, CY = L => 58 - 44 * L;
@@ -944,12 +992,16 @@ const Scene = (() => {
     }
     let rays = '';
     for (let i = 0; i < 12; i++) rays += `<rect x="-2.5" y="-46" width="5" height="12" rx="2.5" transform="rotate(${i * 30})"/>`;
+    let stars = '';
+    for (let i = 0; i < 46; i++) {
+      stars += `<circle cx="${(prng() * 800).toFixed(0)}" cy="${(prng() * 92).toFixed(0)}" r="${(.8 + prng() * 1.4).toFixed(1)}" style="animation-delay:${(prng() * 3).toFixed(1)}s"/>`;
+    }
 
     return `<svg class="scene" viewBox="0 0 800 350" role="img" aria-label="Rocky shore cross-section">
 <defs>
- <linearGradient id="gClear" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4fb0ee"/><stop offset="1" stop-color="#d7f1ff"/></linearGradient>
- <linearGradient id="gHot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f08a3c"/><stop offset="1" stop-color="#ffe6b0"/></linearGradient>
- <linearGradient id="gRain" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#58697b"/><stop offset="1" stop-color="#a9b6c2"/></linearGradient>
+ <linearGradient id="gSky" x1="0" y1="0" x2="0" y2="1"><stop id="skyTop" offset="0" stop-color="#4fb0ee"/><stop id="skyBot" offset="1" stop-color="#d7f1ff"/></linearGradient>
+ <linearGradient id="gRainSky" x1="0" y1="0" x2="0" y2="1"><stop id="rainTop" offset="0" stop-color="#58697b"/><stop id="rainBot" offset="1" stop-color="#a9b6c2"/></linearGradient>
+ <linearGradient id="gHaze" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffbe6" stop-opacity="0"/><stop offset="1" stop-color="#fffbe6" stop-opacity=".75"/></linearGradient>
  <linearGradient id="gRock" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#85776a"/><stop offset="1" stop-color="#3f3832"/></linearGradient>
  <linearGradient id="gWater" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34b2d0" stop-opacity=".62"/><stop offset="1" stop-color="#0b4f78" stop-opacity=".86"/></linearGradient>
  <linearGradient id="gMurk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7d6a3c" stop-opacity=".78"/><stop offset="1" stop-color="#3a2f1a" stop-opacity=".92"/></linearGradient>
@@ -957,12 +1009,14 @@ const Scene = (() => {
  <clipPath id="cGround"><path d="${ground}"/></clipPath>
 </defs>
 <g id="skies">
- <rect class="sky" data-k="clear" width="800" height="400" fill="url(#gClear)"/>
- <rect class="sky" data-k="hot" width="800" height="400" fill="url(#gHot)" style="opacity:0"/>
- <rect class="sky" data-k="rain" width="800" height="400" fill="url(#gRain)" style="opacity:0"/>
+ <rect width="800" height="400" fill="url(#gSky)"/>
+ <rect id="rainSky" width="800" height="400" fill="url(#gRainSky)" style="opacity:0"/>
+ <rect id="haze" width="800" height="400" fill="url(#gHaze)" style="opacity:0"/>
 </g>
-<g class="sun" id="sun" transform="translate(712 54)"><g class="sunin"><circle class="glow" r="46" fill="#ffd35c" opacity=".3"/><g class="rays" fill="#ffd35c">${rays}</g><circle class="core" r="25" fill="#ffd35c"/></g></g>
-<g class="clouds" id="cloudsL" fill="#fff" opacity=".85">${cloud(250,44,1,'')}${cloud(520,30,.8,'')}${cloud(640,86,.55,'')}</g>
+<g id="stars" fill="#fff" style="opacity:0">${stars}</g>
+<g id="moon" style="opacity:0" transform="translate(500 60)"><circle r="42" fill="#cfe0ff" opacity=".10"/><circle r="30" fill="#cfe0ff" opacity=".14"/><path d="M4 -19.6A20 20 0 1 0 4 19.6A24 24 0 0 1 4 -19.6Z" fill="#f7f2d6"/></g>
+<g class="sun" id="sun" style="opacity:0" transform="translate(400 40)"><g class="sunin" id="sunIn"><circle class="glow" r="46" opacity=".3"/><g class="rays">${rays}</g><circle class="core" r="25"/></g></g>
+<g class="clouds" id="cloudsL" fill="#fff" style="opacity:.85">${cloud(250,44,1,'')}${cloud(520,30,.8,'')}${cloud(640,86,.55,'')}</g>
 <g class="clouds" id="cloudsD" fill="#4d5b69" style="opacity:0">${cloud(210,40,1.15,'')}${cloud(430,28,1,'')}${cloud(640,50,1.2,'')}</g>
 <g class="divs">${[150,330,540,700].map(x => `<line x1="${x}" x2="${x}" y1="0" y2="${groundY(x).toFixed(1)}"/>`).join('')}</g>
 <g clip-path="url(#cGround)">
@@ -980,6 +1034,7 @@ ${crits}
  <path id="wMurk" class="wp murk" fill="url(#gMurk)"/>
  <path id="wCrest" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="2.2"/>
 </g></g></g>
+<rect id="nightOv" width="800" height="400" fill="#081636" style="opacity:0" pointer-events="none"/>
 <g id="you" style="display:none"><circle class="ring" id="ring" r="27" cy="-17" fill="none" stroke-width="4"/>
  <g class="ytag" transform="translate(0 -62)"><rect x="-19" y="-11" width="38" height="19" rx="9.5"/><text y="3">YOU</text><path d="M-4.5 8h9L0 13z"/></g></g>
 <g class="rainwrap" id="rain" style="opacity:0" stroke="rgba(225,238,255,.7)" stroke-width="1.5" stroke-linecap="round"><g class="rainfall"><g>${rain}</g><g transform="translate(0 -400)">${rain}</g></g></g>
@@ -1011,7 +1066,7 @@ ${lab(0, 'start')}${lab(.5, 'middle')}${lab(1, 'end')}
 ${svgMarkup()}
 <div class="hud">
  <div class="tiles">
-  <div class="tile"><small>Time</small><b id="hTime">6:00 AM</b></div>
+  <div class="tile"><small>Time</small><b id="hTime">6:00 AM<span>Dawn</span></b></div>
   <div class="tile"><small>Tide height</small><b id="hTide">6.0 ft<span>High tide</span></b></div>
   <div class="tile" id="hYouTile" hidden><small>You are</small><b id="hYou">–</b></div>
  </div>
@@ -1020,7 +1075,63 @@ ${svgMarkup()}
     svg = $('svg.scene', wrap); waterEl = $('#water', wrap); youG = $('#you', wrap); ringEl = $('#ring', wrap);
     hudTime = $('#hTime', wrap); hudTide = $('#hTide', wrap); hudYou = $('#hYou', wrap);
     curveDot = $('#cDot', wrap); curveMarks = $('#cMarks', wrap);
+    const g = id => $('#' + id, wrap);
+    skyTop = g('skyTop'); skyBot = g('skyBot'); rainTop = g('rainTop'); rainBot = g('rainBot');
+    rainSkyEl = g('rainSky'); hazeEl = g('haze'); rainEl = g('rain'); sunEl = g('sun'); sunIn = g('sunIn');
+    moonEl = g('moon'); starsEl = g('stars'); cloudsL = g('cloudsL'); cloudsD = g('cloudsD'); nightOv = g('nightOv');
     setWaves('medium');
+    drawSky();
+  }
+
+  /* Paint the sky, sun, moon, stars, clouds, and night tint for the current animated state S */
+  function drawSky() {
+    const { top, bot, D } = skyAt(S.min);
+    skyTop.setAttribute('stop-color', rgb(top)); skyBot.setAttribute('stop-color', rgb(bot));
+    rainTop.setAttribute('stop-color', rgb(mixRGB([27, 35, 48], [88, 105, 123], D)));
+    rainBot.setAttribute('stop-color', rgb(mixRGB([35, 44, 58], [169, 182, 194], D)));
+    rainSkyEl.style.opacity = (S.rain * .92).toFixed(3);
+    rainEl.style.opacity = S.rain.toFixed(3);
+    hazeEl.style.opacity = (S.heat * D * (1 - S.rain)).toFixed(3);
+    cloudsD.style.opacity = S.rain.toFixed(3);
+    cloudsD.style.fill = rgb(mixRGB([34, 42, 58], [77, 91, 105], D));
+    cloudsL.style.opacity = (.85 * (1 - S.rain) * (1 - .7 * S.heat)).toFixed(3);
+    cloudsL.style.fill = rgb(mixRGB([58, 70, 112], [255, 255, 255], D));
+    nightOv.style.opacity = ((1 - D) * .4).toFixed(3);
+
+    const m = ((S.min % 1440) + 1440) % 1440;
+    const p = (m - SUNRISE) / (SUNSET - SUNRISE);                       // 0 at sunrise, 1 at sunset
+    if (p > 0 && p < 1) {
+      const e = Math.sin(Math.PI * p);
+      sunEl.setAttribute('transform', `translate(${(80 + 640 * p).toFixed(1)} ${(100 - 62 * e).toFixed(1)})`);
+      sunEl.style.opacity = (Math.min(1, 20 * p, 20 * (1 - p)) * (1 - .95 * S.rain)).toFixed(3);
+      sunEl.style.setProperty('--sunc', rgb(mixRGB(mixRGB(SUN_LOW, SUN_HI, Math.min(1, e / .45)), SUN_HOT, S.heat)));
+      sunIn.style.transform = `scale(${(1 + .25 * S.heat).toFixed(3)})`;
+    } else sunEl.style.opacity = 0;
+
+    const nightLen = 1440 - SUNSET + SUNRISE;
+    const n = m >= SUNSET ? m - SUNSET : (m < SUNRISE ? m + 1440 - SUNSET : -1);
+    const q = n < 0 ? -1 : n / nightLen;                                // 0 at sunset, 1 at sunrise
+    if (q > 0 && q < 1) {
+      moonEl.setAttribute('transform', `translate(${(80 + 640 * q).toFixed(1)} ${(100 - 62 * Math.sin(Math.PI * q)).toFixed(1)})`);
+      moonEl.style.opacity = (Math.min(1, 20 * q, 20 * (1 - q)) * clamp01(1 - D * 1.6) * (1 - S.rain)).toFixed(3);
+    } else moonEl.style.opacity = 0;
+    starsEl.style.opacity = (clamp01(1 - D * 1.8) * (1 - S.rain)).toFixed(3);
+  }
+
+  /* Animate the sky to a new clock time / weather */
+  function tween(to, ms, linear) {
+    cancelAnimationFrame(tw);
+    if (!ms || reduceMotion()) { Object.assign(S, to); drawSky(); return; }
+    const from = { ...S }, t0 = performance.now();
+    const step = now => {
+      const k = Math.min(1, (now - t0) / ms), e = linear ? k : (k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+      S.min = from.min + (to.min - from.min) * e;
+      S.rain = from.rain + (to.rain - from.rain) * e;
+      S.heat = from.heat + (to.heat - from.heat) * e;
+      drawSky();
+      if (k < 1) tw = requestAnimationFrame(step);
+    };
+    tw = requestAnimationFrame(step);
   }
 
   function setWaves(w) {
@@ -1038,24 +1149,9 @@ ${svgMarkup()}
     $$('#zstrip span', wrap).forEach(s => s.classList.toggle('on', s.dataset.z === z));
   }
 
-  function set(args) {
-    lastArgs = args;
-    const { t, sky = 'clear', waves = 'calm', water = 'blue', fx = [], zone } = args;
-    const L = tideL(t);
-    waterEl.style.transform = `translateY(${surfY(L)}px)`;
-    $$('.sky', svg).forEach(r => r.style.opacity = (r.dataset.k === sky || (sky === 'storm' && r.dataset.k === 'rain')) ? 1 : 0);
-    const sunny = sky === 'clear' || sky === 'hot';
-    const sun = $('#sun', svg); sun.style.opacity = sunny ? 1 : 0; sun.classList.toggle('hot', sky === 'hot');
-    $('#cloudsL', svg).style.opacity = sky === 'clear' ? .85 : sky === 'hot' ? .3 : 0;
-    $('#cloudsD', svg).style.opacity = sky === 'rain' || sky === 'storm' ? 1 : 0;
-    $('#rain', svg).style.opacity = sky === 'rain' || sky === 'storm' ? 1 : 0;
-    svg.classList.toggle('murk', water === 'murk');
-    setWaves(waves);
-    svg.classList.remove('gull');
-    if (fx.includes('gull')) { void svg.getBoundingClientRect(); svg.classList.add('gull'); }
-    setZone(zone || (youOrg ? ORGS.find(o => o.id === youOrg).zone : null));
-
-    hudTime.textContent = clock(t);
+  function renderHud() {
+    const { min, t, L } = view;
+    hudTime.innerHTML = `${clockM(min)}<span>${period(min)}</span>`;
     hudTide.innerHTML = `${tideFt(L).toFixed(1)} ft<span>${phase(t)}</span>`;
     let status = '';
     if (youOrg) {
@@ -1066,7 +1162,24 @@ ${svgMarkup()}
     }
     curveDot.setAttribute('cx', CX(t).toFixed(1));
     curveDot.setAttribute('cy', CY(L).toFixed(1));
-    svg.setAttribute('aria-label', `Rocky shore cross-section. ${clock(t)}, ${phase(t).toLowerCase()}, ${tideFt(L).toFixed(1)} feet. ${status}`);
+    svg.setAttribute('aria-label', `Rocky shore cross-section. ${clockM(min)}, ${period(min).toLowerCase()}, ${phase(t).toLowerCase()}, ${tideFt(L).toFixed(1)} feet. ${status}`);
+  }
+
+  /* args: t (position in the tide cycle) or min (minutes after midnight), sky ('clear' | 'hot' | 'rain'),
+     waves, water, fx, zone; snap = jump instantly, linear = steady sky animation (title loop) */
+  function set(args) {
+    const { sky = 'clear', waves = 'calm', water = 'blue', fx = [], zone, snap = false, linear = false } = args;
+    const min = args.min !== undefined ? args.min : CYCLE_START + args.t * CYCLE_LEN;
+    const t = args.t !== undefined ? args.t : tOfMin(min), L = tideL(t);
+    Object.assign(view, { min, t, L });
+    waterEl.style.transform = `translateY(${surfY(L)}px)`;
+    svg.classList.toggle('murk', water === 'murk');
+    setWaves(waves);
+    svg.classList.remove('gull');
+    if (fx.includes('gull')) { void svg.getBoundingClientRect(); svg.classList.add('gull'); }
+    setZone(zone || (youOrg ? ORGS.find(o => o.id === youOrg).zone : null));
+    tween({ min, rain: (sky === 'rain' || sky === 'storm') ? 1 : 0, heat: sky === 'hot' ? 1 : 0 }, snap ? 0 : (linear ? 3400 : 1500), linear);
+    renderHud();
   }
 
   function setYou(id) {
@@ -1083,7 +1196,7 @@ ${svgMarkup()}
     $('#hYouTile', wrap).hidden = !id;
     if (id) youG.setAttribute('transform', `translate(${youX} ${groundY(youX) + 1})`);
     setZone(id ? ORGS.find(o => o.id === id).zone : null);
-    if (lastArgs) set({ ...lastArgs, zone:undefined });
+    renderHud();
   }
 
   function setMarks(ts) {
@@ -1105,9 +1218,12 @@ ${svgMarkup()}
   function ambient(on) {
     clearInterval(timer); timer = null;
     if (!on) return;
-    const step = () => {
-      ambT = (ambT + 0.07) % 1;
-      set({ t: ambT, sky: (ambT > .36 && ambT < .64) ? 'hot' : 'clear', waves: 'medium' });
+    let first = true;
+    const step = () => {                          // the title and select screens loop through a full day
+      if (!first) ambMin += 45;
+      const mm = ((ambMin % 1440) + 1440) % 1440;
+      set({ min:ambMin, sky:(mm >= 600 && mm <= 870) ? 'hot' : 'clear', waves:'medium', snap:first, linear:true });
+      first = false;
     };
     step(); timer = setInterval(step, 3600);
   }
@@ -1192,7 +1308,7 @@ function renderQ() {
   const e = G.seq[G.i];
   G.answered = false; G.hinted = false;
   G.order = shuffle(e.opts.map((_, k) => k));
-  Scene.set({ t:e.t, sky:e.sky, waves:e.waves, water:e.water, fx:e.fx || [], zone:e.zone });
+  Scene.set({ t:e.t, sky:e.sky, waves:e.waves, water:e.water, fx:e.fx || [], zone:e.zone, snap:G.i === 0 });
   Scene.setCur(G.i);
   $('#qcard').innerHTML = `
     <div class="qtop"><span class="chip c-${e.cat}">${CATS[e.cat].label}</span><span class="rnd">Round ${G.i + 1} of ${ROUNDS}</span></div>
